@@ -1,115 +1,275 @@
+import 'dart:io';
+//import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:intermax_task_manager/Flutter%20Toast/flutter_toast.dart';
+import 'package:intermax_task_manager/ServerSideApi/server_side_api.dart';
+import 'package:intermax_task_manager/User%20Details/user_details.dart';
+import 'package:intermax_task_manager/User%20State/user_state.dart';
+import 'package:intermax_task_manager/tasks_page.dart';
+import 'package:responsive_framework/responsive_framework.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  //await Firebase.initializeApp();
+  runApp(const MaterialApp(
+    home: TaskManagerMainPage(),
+  ));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+class TaskManagerMainPage extends StatefulWidget{
+  const TaskManagerMainPage({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
+  _MainPageState createState() => _MainPageState();
+}
+
+class _MainPageState extends State<TaskManagerMainPage>{
+
+  var _ipAddressFieldFocusNode;
+  var _nameFieldFocus;
+  var _passwordFieldFocus;
+
+  ShowMessage? _showMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    UserState.init();
+    _showMessage = ShowMessage.init();
+    _ipAddressFieldFocusNode = FocusNode();
+    _nameFieldFocus = FocusNode();
+    _passwordFieldFocus = FocusNode();
   }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key, required this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
+  void dispose() {
+    super.dispose();
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+    _ipAddressFieldFocusNode.dispose();
+    _nameFieldFocus.dispose();
+    _passwordFieldFocus.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+    return ResponsiveWrapper.builder(
+      Scaffold(
+        appBar: UserState.isSignedIn == false ? AppBar(
+          title: const Text('Планировщик задач Intermax', style: TextStyle(fontSize: 20)),
+          centerTitle: false,
+          backgroundColor: Colors.grey,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.login),
+              onPressed: () => _showLoginDialog(),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
+            !Platform.isAndroid ? IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () => null,
+            ) : Container()
           ],
-        ),
+        ) : null,
+        body: mainWidget(),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      breakpoints: const [
+        ResponsiveBreakpoint.resize(200, name: MOBILE),
+        ResponsiveBreakpoint.resize(800, name: TABLET),
+        ResponsiveBreakpoint.resize(1000, name: DESKTOP),
+      ],
+      defaultScale: true,
     );
+  }
+
+  Widget mainWidget(){
+    return UserState.isSignedIn == true
+        ? const TaskPage()
+        : const Center(child: Text('Пожалуйста войдите в свой аккаунт', style: TextStyle(fontSize: 20)));
+  }
+
+  void _showLoginDialog(){
+    TextEditingController ipController = TextEditingController();
+    TextEditingController nameController = TextEditingController();
+    TextEditingController passwordController = TextEditingController();
+
+    List<TextEditingController> controllers = [
+      ipController,
+      nameController,
+      passwordController
+    ];
+
+    if (UserState.getIP() != '' &&
+        UserState.getUserName() != null &&
+        UserState.getPassword() != null) {
+      ipController.value = ipController.value.copyWith(text: UserState.getIP());
+      nameController.value = nameController.value.copyWith(text: UserState.getUserName());
+      passwordController.value = passwordController.value.copyWith(text: UserState.getPassword());
+    }
+
+    var _isHidden = true;
+    var _isChecked = false;
+
+    showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return SimpleDialog(
+                title: const Text(
+                  'Войти',
+                  style: TextStyle(color: Colors.black, fontSize: 30),
+                ),
+                contentPadding: const EdgeInsets.all(20.0),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(Platform.isAndroid ? 20.0 : 3.0)),
+                backgroundColor: Colors.white,
+                children: [
+                  Column(
+                    children: [
+                      TextFormField(
+                        cursorColor: Colors.deepOrangeAccent,
+                        focusNode: _ipAddressFieldFocusNode,
+                        keyboardType: TextInputType.text,
+                        controller: ipController,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(Platform.isAndroid ? 20.0 : 3.0)),
+                          label: const Text('IP Адрес'),
+                          labelStyle: TextStyle(color: _ipAddressFieldFocusNode.hasFocus ? Colors.deepOrangeAccent : Colors.grey),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(Platform.isAndroid ? 20.0 : 3.0),
+                            borderSide: const BorderSide(
+                              color: Colors.deepOrangeAccent,
+                              width: 2.0,
+                            ),
+                          ),
+                        ),
+                        onTap: () {
+                          FocusScope.of(context).requestFocus(_ipAddressFieldFocusNode);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        cursorColor: Colors.deepOrangeAccent,
+                        focusNode: _nameFieldFocus,
+                        keyboardType: TextInputType.text,
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(Platform.isAndroid ? 20.0 : 3.0)),
+                          label: const Text('Имя пользователя'),
+                          labelStyle: TextStyle(color: _nameFieldFocus.hasFocus ? Colors.deepOrangeAccent : Colors.grey),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(Platform.isAndroid ? 20.0 : 3.0),
+                            borderSide: const BorderSide(
+                              color: Colors.deepOrangeAccent,
+                              width: 2.0,
+                            ),
+                          ),
+                        ),
+                        onTap: (){
+                          FocusScope.of(context).requestFocus(_nameFieldFocus);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        cursorColor: Colors.deepOrangeAccent,
+                        focusNode: _passwordFieldFocus,
+                        keyboardType: TextInputType.text,
+                        obscureText: _isHidden,
+                        controller: passwordController,
+                        decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(Platform.isAndroid ? 20.0 : 3.0)),
+                            label: const Text('Пароль'),
+                            labelStyle: TextStyle(color: _passwordFieldFocus.hasFocus ? Colors.deepOrangeAccent : Colors.grey),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(Platform.isAndroid ? 20.0 : 3.0),
+                              borderSide: const BorderSide(
+                                color: Colors.deepOrangeAccent,
+                                width: 2.0,
+                              ),
+                            ),
+                            suffixIcon: IconButton(
+                              color: _passwordFieldFocus.hasFocus ? Colors.deepOrangeAccent : Colors.black,
+                              icon: Icon(!_isHidden
+                                  ? Icons.visibility
+                                  : Icons.visibility_off),
+                              onPressed: () {
+                                setState(() {
+                                  _isHidden = !_isHidden;
+                                });
+                              },
+                            )),
+                        onTap: (){
+                          FocusScope.of(context).requestFocus(_passwordFieldFocus);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      CheckboxListTile(
+                          title: const Text('Запомнить меня'),
+                          checkColor: Colors.white,
+                          activeColor: Colors.deepOrangeAccent,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          value: _isChecked,
+                          onChanged: (value) {
+                            setState(() {
+                              _isChecked = value!;
+                            });
+                          }),
+                      const SizedBox(height: 20),
+                      FloatingActionButton.extended(
+                        backgroundColor: Colors.deepOrangeAccent,
+                        label: const Text('Войти'),
+                          shape: !Platform.isAndroid ? const BeveledRectangleBorder(
+                              borderRadius: BorderRadius.zero
+                          ) : null,
+                        onPressed: () => _loginUser(controllers, _isChecked)
+                      )
+                    ],
+                  )
+                ],
+              );
+            },
+          );
+        });
+  }
+
+  // User login
+  Future _loginUser(List<TextEditingController> controllersList, bool isChecked) async {
+    var ip = controllersList[0].text;
+    var name = controllersList[1].text;
+    var password = controllersList[2].text;
+
+    User? userData;
+    var data = {'ip': ip, 'name': name, 'password': password};
+
+    return Future.wait([
+      ServerSideApi.create(ip, 2).loginUser(data).then((value) => userData = value.body),
+    ]).whenComplete(() {
+      if(ip == '' || name == '' || password == ''){
+        _showMessage!.show(context, 3);
+      }else{
+        if(userData!.status == 'account_exists'){
+          Navigator.pop(context);
+          _showMessage!.show(context, 4);
+          if(isChecked == true){
+            setState(() {
+              UserState.isSignedIn = true;
+              UserState.temporaryIp = ip;
+              UserState.userName = userData!.username;
+              UserState.rememberUser(ip, userData!.username, password);
+            });
+          }else{
+            setState(() {
+              UserState.isSignedIn = true;
+              UserState.temporaryIp = ip;
+              UserState.userName = userData!.username;
+            });
+          }
+        }else if (userData!.status == 'account_not_exists'){
+          _showMessage!.show(context, 5);
+        }
+      }
+    });
   }
 }

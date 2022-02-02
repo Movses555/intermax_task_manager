@@ -1,5 +1,5 @@
 name: intermax_task_manager
-description: Intermax Task Manager
+description: Intermax Task Manager App
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -34,6 +34,17 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
+  responsive_framework: ^0.1.5
+  shared_preferences: ^2.0.12
+  chopper: ^4.0.4
+  json_annotation: ^4.4.0
+  fluttertoast: ^8.0.8
+  roundcheckbox: ^2.0.4+1
+  intl: ^0.17.0
+  data_table_2: ^2.2.0
+  #firebase_messaging: ^11.2.6
+  #flutter_local_notifications: ^9.2.0
+  #firebase_core: ^1.12.0
 
 dev_dependencies:
   flutter_test:
@@ -45,6 +56,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^1.0.0
+  build_runner:
+  chopper_generator:
+  json_serializable:
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
