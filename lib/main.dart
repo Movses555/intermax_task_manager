@@ -54,8 +54,9 @@ class _MainPageState extends State<TaskManagerMainPage>{
   Widget build(BuildContext context) {
     return ResponsiveWrapper.builder(
       Scaffold(
-        appBar: UserState.isSignedIn == false ? AppBar(
-          title: const Text('Планировщик задач Intermax', style: TextStyle(fontSize: 20)),
+        appBar: UserState.isSignedIn == false ?
+        AppBar(
+          title:  const Text('Планировщик задач Intermax', style: TextStyle(fontSize: 25)),
           centerTitle: false,
           backgroundColor: Colors.grey,
           actions: [
@@ -72,7 +73,7 @@ class _MainPageState extends State<TaskManagerMainPage>{
         body: mainWidget(),
       ),
       breakpoints: const [
-        ResponsiveBreakpoint.resize(200, name: MOBILE),
+        ResponsiveBreakpoint.resize(500, name: MOBILE),
         ResponsiveBreakpoint.resize(800, name: TABLET),
         ResponsiveBreakpoint.resize(1000, name: DESKTOP),
       ],
