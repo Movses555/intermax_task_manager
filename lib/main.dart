@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
+import 'package:intermax_task_manager/Brigades%20Settings/brigade_details.dart';
 import 'package:intermax_task_manager/Flutter%20Toast/flutter_toast.dart';
 import 'package:intermax_task_manager/ServerSideApi/server_side_api.dart';
 import 'package:intermax_task_manager/User%20Details/user_details.dart';
@@ -11,6 +13,18 @@ import 'package:responsive_framework/responsive_framework.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  AwesomeNotifications().initialize(
+      null,
+      [
+        NotificationChannel(
+            channelKey: 'basic_channel',
+            channelName: 'Basic Notifications',
+            channelDescription: 'Description',
+            defaultColor: Colors.deepOrangeAccent,
+            importance: NotificationImportance.High,
+            ledColor: Colors.red)
+      ],
+  );
   runApp(const MaterialApp(
     home: TaskManagerMainPage(),
   ));
@@ -224,7 +238,7 @@ class _MainPageState extends State<TaskManagerMainPage>{
                           shape: !Platform.isAndroid ? const BeveledRectangleBorder(
                               borderRadius: BorderRadius.zero
                           ) : null,
-                        onPressed: () => _loginUser(controllers, _isChecked)
+                        onPressed: () => Platform.isAndroid ? _loginBrigade(controllers, _isChecked) : _loginUser(controllers, _isChecked)
                       )
                     ],
                   )
@@ -273,4 +287,45 @@ class _MainPageState extends State<TaskManagerMainPage>{
       }
     });
   }
+
+  // Brigade login
+  Future _loginBrigade(List<TextEditingController> controllersList, bool isChecked) async {
+    var ip = controllersList[0].text;
+    var name = controllersList[1].text;
+    var password = controllersList[2].text;
+
+    Brigade? brigadeData;
+    var data = {'ip': ip, 'name': name, 'password': password};
+
+    return Future.wait([
+      ServerSideApi.create(ip, 4).loginBrigade(data).then((value) => brigadeData = value.body),
+    ]).whenComplete(() {
+      if(ip == '' || name == '' || password == ''){
+        _showMessage!.show(context, 3);
+      }else{
+        if(brigadeData!.status == 'account_exists'){
+          Navigator.pop(context);
+          _showMessage!.show(context, 4);
+          UserState.rememberBrigade(brigadeData!.brigade);
+          if(isChecked == true){
+            setState(() {
+              UserState.isSignedIn = true;
+              UserState.temporaryIp = ip;
+              UserState.userName = brigadeData!.username;
+              UserState.rememberUser(ip, brigadeData!.username, password);
+            });
+          }else{
+            setState(() {
+              UserState.isSignedIn = true;
+              UserState.temporaryIp = ip;
+              UserState.userName = brigadeData!.username;
+            });
+          }
+        }else if (brigadeData!.status == 'account_not_exists'){
+          _showMessage!.show(context, 5);
+        }
+      }
+    });
+  }
+
 }
