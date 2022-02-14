@@ -48,6 +48,7 @@ dependencies:
   translit: ^2.0.0
   awesome_notifications: ^0.6.21
   notification_permissions: ^0.6.1
+  url_launcher: ^6.0.20
 
 dev_dependencies:
   flutter_test:

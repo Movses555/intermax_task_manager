@@ -12,22 +12,22 @@ import 'package:responsive_framework/responsive_framework.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  //await Firebase.initializeApp();
+  await Firebase.initializeApp();
   AwesomeNotifications().initialize(
       null,
       [
         NotificationChannel(
-            channelKey: 'basic_channel',
+            channelKey: 'high_importance_channel',
             channelName: 'Basic Notifications',
             channelDescription: 'Description',
-            defaultColor: Colors.deepOrangeAccent,
-            importance: NotificationImportance.High,
-            ledColor: Colors.red)
+            defaultColor: Colors.purpleAccent,
+            importance: NotificationImportance.High)
       ],
   );
   runApp(const MaterialApp(
     home: TaskManagerMainPage(),
-  ));
+  )
+  );
 }
 
 class TaskManagerMainPage extends StatefulWidget{
@@ -49,11 +49,25 @@ class _MainPageState extends State<TaskManagerMainPage>{
   void initState() {
     super.initState();
     UserState.init();
+
     _showMessage = ShowMessage.init();
     _ipAddressFieldFocusNode = FocusNode();
     _nameFieldFocus = FocusNode();
     _passwordFieldFocus = FocusNode();
+
+    UserState.getSignInStatus()!.then((status) {
+      if(status == true){
+        setState(() {
+          UserState.isSignedIn = true;
+        });
+      }else{
+        setState(() {
+          UserState.isSignedIn = false;
+        });
+      }
+    });
   }
+
 
   @override
   void dispose() {
@@ -101,6 +115,7 @@ class _MainPageState extends State<TaskManagerMainPage>{
         : const Center(child: Text('Пожалуйста войдите в свой аккаунт', style: TextStyle(fontSize: 20)));
   }
 
+  // Show login dialog
   void _showLoginDialog(){
     TextEditingController ipController = TextEditingController();
     TextEditingController nameController = TextEditingController();
@@ -140,7 +155,7 @@ class _MainPageState extends State<TaskManagerMainPage>{
                 children: [
                   Column(
                     children: [
-                      TextFormField(
+                      !Platform.isAndroid ? TextFormField(
                         cursorColor: Colors.deepOrangeAccent,
                         focusNode: _ipAddressFieldFocusNode,
                         keyboardType: TextInputType.text,
@@ -161,7 +176,7 @@ class _MainPageState extends State<TaskManagerMainPage>{
                         onTap: () {
                           FocusScope.of(context).requestFocus(_ipAddressFieldFocusNode);
                         },
-                      ),
+                      ) : Container(),
                       const SizedBox(height: 20),
                       TextFormField(
                         cursorColor: Colors.deepOrangeAccent,
@@ -309,7 +324,6 @@ class _MainPageState extends State<TaskManagerMainPage>{
           UserState.rememberBrigade(brigadeData!.brigade);
           if(isChecked == true){
             setState(() {
-              UserState.isSignedIn = true;
               UserState.temporaryIp = ip;
               UserState.userName = brigadeData!.username;
               UserState.rememberUser(ip, brigadeData!.username, password);
@@ -321,11 +335,11 @@ class _MainPageState extends State<TaskManagerMainPage>{
               UserState.userName = brigadeData!.username;
             });
           }
+          UserState.rememberUserState(true);
         }else if (brigadeData!.status == 'account_not_exists'){
           _showMessage!.show(context, 5);
         }
       }
     });
   }
-
 }
