@@ -20,6 +20,24 @@ import 'package:responsive_framework/responsive_framework.dart';
 import 'package:roundcheckbox/roundcheckbox.dart';
 import 'package:translit/translit.dart';
 
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if(Platform.isAndroid){
+    await Firebase.initializeApp();
+    AwesomeNotifications().createNotification(
+        content: NotificationContent(
+            id: 1,
+            channelKey: 'high_importance_channel',
+            wakeUpScreen: true,
+            displayOnBackground: true,
+            backgroundColor: Colors.purpleAccent,
+            displayOnForeground: true,
+            title: '${message.notification!.title}',
+            body: '${message.notification!.body}'
+        )
+    );
+  }
+}
+
 
 class TaskPage extends StatefulWidget {
   const TaskPage({Key? key}) : super(key: key);
@@ -53,21 +71,6 @@ class _TasksPageState extends State<TaskPage>
 
   var dateFormatter = DateFormat('dd.MM.yyyy');
 
-  Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-    await Firebase.initializeApp();
-    AwesomeNotifications().createNotification(
-        content: NotificationContent(
-            id: 10,
-            channelKey: 'high_importance_channel',
-            wakeUpScreen: true,
-            displayOnBackground: true,
-            displayOnForeground: true,
-            title: '${message.notification!.title}',
-            body: '${message.notification!.body}'
-        )
-    );
-  }
-
   @override
   void initState() {
     super.initState();
@@ -86,17 +89,19 @@ class _TasksPageState extends State<TaskPage>
     _tabController = TabController(length: 2, vsync: this);
 
     if (Platform.isAndroid) {
-        FirebaseMessaging.instance.getInitialMessage();
-        FirebaseMessaging.instance.subscribeToTopic(Translit().toTranslit(source: UserState.getBrigade()!));
+      FirebaseMessaging.instance.getInitialMessage();
+      FirebaseMessaging.instance.subscribeToTopic(Translit().toTranslit(source: UserState.getBrigade()!));
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       FirebaseMessaging.onMessage.listen((message) {
         if (message.notification != null) {
           AwesomeNotifications().createNotification(
               content: NotificationContent(
-                id: 10,
+                id: 2,
                 wakeUpScreen: true,
                 displayOnBackground: true,
                 backgroundColor: Colors.purpleAccent,
+                color: Colors.purpleAccent,
                 displayOnForeground: true,
                 channelKey: 'high_importance_channel',
                 title: '${message.notification!.title}',
@@ -106,9 +111,7 @@ class _TasksPageState extends State<TaskPage>
         }
       });
 
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-      FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      FirebaseMessaging.onMessageOpenedApp.listen((message){
 
       });
     }
@@ -784,7 +787,8 @@ class _TasksPageState extends State<TaskPage>
     return ListView.builder(
       itemCount: _brigadeTaskList!.length,
       itemBuilder: (context, index) {
-        onMyWayPressed = List.generate(_brigadeTaskList!.length, (index) => false);
+        onMyWayPressed =
+            List.generate(_brigadeTaskList!.length, (index) => false);
         TaskServerModel brigadeTask = _brigadeTaskList![index];
         String? formattedDate = dateFormatter.format(DateTime.now());
         String? date;
@@ -813,7 +817,7 @@ class _TasksPageState extends State<TaskPage>
                 context: context,
                 builder: (context) {
                   return StatefulBuilder(
-                    builder: (context, dialogState){
+                    builder: (context, dialogState) {
                       return SimpleDialog(
                         title: const Text(
                           'Детали о задаче',
@@ -840,14 +844,15 @@ class _TasksPageState extends State<TaskPage>
                                 const Divider(height: 1),
                                 ListTile(
                                   title: Text(brigadeTask.address),
-                                  leading: const Icon(Icons.add_location_rounded),
+                                  leading: const Icon(
+                                      Icons.add_location_rounded),
                                 ),
                                 const Divider(height: 1),
                                 ListTile(
-                                    title: Text(brigadeTask.telephone),
-                                    leading: const Icon(Icons.phone),
-                                  onTap: (){
-                                      launch('tel://${brigadeTask.telephone}');
+                                  title: Text(brigadeTask.telephone),
+                                  leading: const Icon(Icons.phone),
+                                  onTap: () {
+                                    launch('tel://${brigadeTask.telephone}');
                                   },
                                 ),
                                 const Divider(height: 1),
@@ -855,7 +860,8 @@ class _TasksPageState extends State<TaskPage>
                                     title: Text(brigadeTask.isUrgent == '1'
                                         ? "Срочно"
                                         : "Не срочно"),
-                                    leading: const Icon(Icons.access_time_outlined)
+                                    leading: const Icon(
+                                        Icons.access_time_outlined)
                                 ),
                                 const SizedBox(height: 10),
                                 Row(
@@ -863,24 +869,36 @@ class _TasksPageState extends State<TaskPage>
                                     SizedBox(
                                       width: 150,
                                       child: FloatingActionButton.extended(
-                                        label: const Text('В пути'),
-                                        backgroundColor: brigadeTask.status == 'В пути' || brigadeTask.status == 'Завершён' ? Colors.grey : Colors.orangeAccent[700],
-                                        onPressed: brigadeTask.status == 'В пути' || brigadeTask.status == 'Завершён' ? null : () async {
-                                          setState(() {
-                                            onMyWayPressed![index] = true;
-                                          });
-                                          var data = {
-                                            'ip' : '192.168.0.38',
-                                            'id' : brigadeTask.id,
-                                            'status' : 'В пути'
-                                          };
-                                          Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
-                                          if(response.body == 'status_updated'){
-                                            Navigator.pop(context);
-                                            _brigadeTaskList!.remove(brigadeTask);
-                                            setState((){});
+                                          label: const Text('В пути'),
+                                          backgroundColor: brigadeTask.status ==
+                                              'В пути' ||
+                                              brigadeTask.status == 'Завершён'
+                                              ? Colors.grey
+                                              : Colors.orangeAccent[700],
+                                          onPressed: brigadeTask.status ==
+                                              'В пути' ||
+                                              brigadeTask.status == 'Завершён'
+                                              ? null
+                                              : () async {
+                                            setState(() {
+                                              onMyWayPressed![index] = true;
+                                            });
+                                            var data = {
+                                              'ip': '192.168.0.38',
+                                              'id': brigadeTask.id,
+                                              'status': 'В пути'
+                                            };
+                                            Response response = await ServerSideApi
+                                                .create('192.168.0.38', 1)
+                                                .updateStatus(data);
+                                            if (response.body ==
+                                                'status_updated') {
+                                              Navigator.pop(context);
+                                              _brigadeTaskList!.remove(
+                                                  brigadeTask);
+                                              setState(() {});
+                                            }
                                           }
-                                        }
                                       ),
                                     ),
                                     const SizedBox(width: 5),
@@ -888,20 +906,28 @@ class _TasksPageState extends State<TaskPage>
                                       width: 139,
                                       child: FloatingActionButton.extended(
                                         label: const Text('Завершено'),
-                                        backgroundColor: brigadeTask.status == 'В пути' ? Colors.green[700] : Colors.grey,
-                                        onPressed: brigadeTask.status == 'В пути' ? () async {
+                                        backgroundColor: brigadeTask.status ==
+                                            'В пути'
+                                            ? Colors.green[700]
+                                            : Colors.grey,
+                                        onPressed: brigadeTask.status ==
+                                            'В пути' ? () async {
                                           var data = {
-                                            'ip' : '192.168.0.38',
-                                            'id' : brigadeTask.id,
-                                            'status' : 'Завершён'
+                                            'ip': '192.168.0.38',
+                                            'id': brigadeTask.id,
+                                            'status': 'Завершён'
                                           };
-                                          Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
-                                          if(response.body == 'status_updated'){
+                                          Response response = await ServerSideApi
+                                              .create('192.168.0.38', 1)
+                                              .updateStatus(data);
+                                          if (response.body ==
+                                              'status_updated') {
                                             Navigator.pop(context);
-                                            _brigadeTaskList!.remove(brigadeTask);
-                                            setState((){});
+                                            _brigadeTaskList!.remove(
+                                                brigadeTask);
+                                            setState(() {});
                                           }
-                                        }: null,
+                                        } : null,
                                       ),
                                     )
                                   ],
@@ -1563,8 +1589,9 @@ class _TasksPageState extends State<TaskPage>
                                     borderRadius: BorderRadius.zero
                                 )
                                     : null,
-                                onPressed: () => _registerBrigade(
-                                    brigadeControllers, brigadesValue)
+                                onPressed: () =>
+                                    _registerBrigade(
+                                        brigadeControllers, brigadesValue)
                             ),
                           ],
                         ),
