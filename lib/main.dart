@@ -128,7 +128,7 @@ class _MainPageState extends State<TaskManagerMainPage> {
     nameController = TextEditingController();
     passwordController = TextEditingController();
 
-    if (UserState.getIP() != null && UserState.getUserName() != null && UserState.getPassword() != null) {
+    if (UserState.getIP() != '' && UserState.getUserName() != null && UserState.getPassword() != null) {
       ipController!.value = ipController!.value.copyWith(text: UserState.getIP());
       nameController!.value = nameController!.value.copyWith(text: UserState.getUserName());
       passwordController!.value = passwordController!.value.copyWith(text: UserState.getPassword());
