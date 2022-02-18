@@ -97,6 +97,14 @@ class _$ServerSideApi extends ServerSideApi {
   }
 
   @override
+  Future<Response<dynamic>> changeBrigade(dynamic data) {
+    final $url = '/change_brigade.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
   Future<Response<List<TaskServerModel>>> getTasks(dynamic data) {
     final $url = '/get_tasks.php';
     final $body = data;
@@ -106,7 +114,7 @@ class _$ServerSideApi extends ServerSideApi {
 
   @override
   Future<Response<List<TaskServerModel>>> getBrigadeTask(dynamic data) {
-    final $url = '/get_brigade_task.php';
+    final $url = '/get_brigade_tasks.php';
     final $body = data;
     final $request = Request('POST', $url, client.baseUrl, body: $body);
     return client.send<List<TaskServerModel>, TaskServerModel>($request);

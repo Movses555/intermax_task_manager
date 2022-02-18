@@ -2,16 +2,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class UserState {
   // ignore: prefer_typing_uninitialized_variables
-  static var isSignedIn = false;
-  // ignore: prefer_typing_uninitialized_variables
   static var userName = '';
   // ignore: prefer_typing_uninitialized_variables
   static var temporaryIp = '';
   // ignore: prefer_typing_uninitialized_variables
   static var sharedPreferences;
 
-  static void init() async {
+  static Future<SharedPreferences> init() async {
     sharedPreferences = await SharedPreferences.getInstance();
+
+    return sharedPreferences;
   }
 
   static void rememberUser(String ip, String name, String password) {
@@ -84,7 +84,6 @@ class UserState {
   static void clear() {
     sharedPreferences.clear();
     userName = '';
-    isSignedIn = false;
     temporaryIp = '';
   }
 }

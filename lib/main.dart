@@ -14,7 +14,9 @@ import 'package:responsive_framework/responsive_framework.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   //await Firebase.initializeApp();
-  AwesomeNotifications().initialize(
+  await UserState.init();
+  if(Platform.isAndroid){
+    AwesomeNotifications().initialize(
       null,
       [
         NotificationChannel(
@@ -23,14 +25,15 @@ void main() async {
             channelDescription: 'Description',
             importance: NotificationImportance.High)
       ],
-  );
+    );
+  }
   runApp(const MaterialApp(
     home: TaskManagerMainPage(),
   )
   );
 }
 
-class TaskManagerMainPage extends StatefulWidget{
+class TaskManagerMainPage extends StatefulWidget {
   const TaskManagerMainPage({Key? key}) : super(key: key);
 
   @override
@@ -43,38 +46,20 @@ class _MainPageState extends State<TaskManagerMainPage> {
   var _nameFieldFocus;
   var _passwordFieldFocus;
 
-
-  TextEditingController? ipController;
-  TextEditingController? nameController;
-  TextEditingController? passwordController;
-
-
   ShowMessage? _showMessage;
 
   @override
   void initState() {
     super.initState();
-    UserState.init();
 
     _showMessage = ShowMessage.init();
     _ipAddressFieldFocusNode = FocusNode();
     _nameFieldFocus = FocusNode();
     _passwordFieldFocus = FocusNode();
 
-    ipController = TextEditingController();
-    nameController = TextEditingController();
-    passwordController = TextEditingController();
-
-
     UserState.getSignInStatus()!.then((status) {
       if(status == true){
-        setState(() {
-          UserState.isSignedIn = true;
-        });
-      }else{
-        setState(() {
-          UserState.isSignedIn = false;
-        });
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskPage()));
       }
     });
   }
@@ -93,19 +78,19 @@ class _MainPageState extends State<TaskManagerMainPage> {
   Widget build(BuildContext context) {
     return ResponsiveWrapper.builder(
       Scaffold(
-        appBar: UserState.isSignedIn == false ?
-        AppBar(
+          appBar: AppBar(
           title:  const Text('Планировщик задач Intermax', style: TextStyle(fontSize: 25)),
           centerTitle: false,
           backgroundColor: Platform.isAndroid ? Colors.deepOrangeAccent : Colors.grey,
+          automaticallyImplyLeading: false,
           actions: [
             !Platform.isAndroid ? IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () => null,
             ) : Container()
           ],
-        ) : null,
-        body: mainWidget(),
+        ),
+        body: loginInterface()
       ),
       breakpoints: const [
         ResponsiveBreakpoint.resize(500, name: MOBILE),
@@ -116,34 +101,29 @@ class _MainPageState extends State<TaskManagerMainPage> {
     );
   }
 
-  Widget mainWidget(){
-    return UserState.isSignedIn == true
-        ? const TaskPage()
-        : loginInterface();
-  }
-
   // Login interface
   StatefulBuilder loginInterface(){
-    ipController = TextEditingController();
-    nameController = TextEditingController();
-    passwordController = TextEditingController();
+    TextEditingController ipController = TextEditingController();
+    TextEditingController nameController = TextEditingController();
+    TextEditingController passwordController = TextEditingController();
 
-    if (UserState.getIP() != '' && UserState.getUserName() != null && UserState.getPassword() != null) {
-      ipController!.value = ipController!.value.copyWith(text: UserState.getIP());
-      nameController!.value = nameController!.value.copyWith(text: UserState.getUserName());
-      passwordController!.value = passwordController!.value.copyWith(text: UserState.getPassword());
+    if (UserState.getIP() != null && UserState.getUserName() != null && UserState.getPassword() != null) {
+      ipController.value = ipController.value.copyWith(text: UserState.getIP());
+      nameController.value = nameController.value.copyWith(text: UserState.getUserName());
+      passwordController.value = passwordController.value.copyWith(text: UserState.getPassword());
     }
 
     List<TextEditingController> controllers = [
-      ipController!,
-      nameController!,
-      passwordController!
+      ipController,
+      nameController,
+      passwordController
     ];
 
     var _isHidden = true;
     var _isChecked = false;
 
     double? height = MediaQuery.of(context).size.height;
+    double? width = MediaQuery.of(context).size.width;
 
     return StatefulBuilder(
       builder: (context, setState){
@@ -152,8 +132,9 @@ class _MainPageState extends State<TaskManagerMainPage> {
           child: Padding(
             padding: Platform.isAndroid
                 ? const EdgeInsets.only(left: 30, right: 30)
-                : EdgeInsets.only(top: height/4, bottom: height/4, left: 800, right: 800),
-            child: Center(
+                : EdgeInsets.only(top: height/4, bottom: height/4, left: width/3, right: width/3),
+            child: SizedBox(
+              width: 300,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -299,7 +280,7 @@ class _MainPageState extends State<TaskManagerMainPage> {
 
     return Future.wait([
       ServerSideApi.create(ip, 2).loginUser(data).then((value) => userData = value.body),
-    ]).whenComplete(() {
+    ]).whenComplete(() async {
       if(ip == '' || name == '' || password == ''){
         _showMessage!.show(context, 3);
       }else{
@@ -308,18 +289,17 @@ class _MainPageState extends State<TaskManagerMainPage> {
           _showMessage!.show(context, 4);
           if(isChecked == true){
             setState(() {
-              UserState.isSignedIn = true;
               UserState.temporaryIp = ip;
               UserState.userName = userData!.username;
               UserState.rememberUser(ip, userData!.username, password);
             });
           }else{
             setState(() {
-              UserState.isSignedIn = true;
               UserState.temporaryIp = ip;
               UserState.userName = userData!.username;
             });
           }
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskPage()));
         }else if (userData!.status == 'account_not_exists'){
           _showMessage!.show(context, 5);
         }
@@ -342,7 +322,6 @@ class _MainPageState extends State<TaskManagerMainPage> {
         _showMessage!.show(context, 3);
       } else {
         if(brigadeData!.status == 'account_exists'){
-          Navigator.pop(context);
           _showMessage!.show(context, 4);
           UserState.rememberBrigade(brigadeData!.brigade);
           if(isChecked == true){
@@ -352,11 +331,11 @@ class _MainPageState extends State<TaskManagerMainPage> {
             });
           }else{
             setState(() {
-              UserState.isSignedIn = true;
               UserState.userName = brigadeData!.username;
             });
           }
           UserState.rememberUserState(true);
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskPage()));
         }else if (brigadeData!.status == 'account_not_exists'){
           _showMessage!.show(context, 5);
         }
