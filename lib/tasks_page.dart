@@ -841,22 +841,48 @@ class _TasksPageState extends State<TaskPage>
         return GestureDetector(
           child: Card(
             elevation: 5,
-            child: ListTile(
-              title: Text(brigadeTask.task, style: TextStyle(
-                  color: Color(int.parse('0x' + brigadeTask.color)),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20)),
-              trailing: _bottomNavBarItemIndex == 0
-                  ? Text(brigadeTask.status, style: const TextStyle(color: Colors.red, fontSize: 18)) :_bottomNavBarItemIndex == 1
-                  ? Text(brigadeTask.status,
-              style: TextStyle(color: brigadeTask.status == 'В пути' ? Colors.orangeAccent[700] : Colors.yellow[700], fontSize: 18)) : _bottomNavBarItemIndex == 2
-              ? Text(brigadeTask.status, style: const TextStyle(color: Colors.green, fontSize: 18)) : null,
-              subtitle: Text(
-                date! + " в " + brigadeTask.time + " на " +
-                    brigadeTask.address,
-                style: const TextStyle(fontSize: 20),
-              ),
-            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                ListTile(
+                  title: Text(brigadeTask.task, style: TextStyle(
+                      color: Color(int.parse('0x' + brigadeTask.color)),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20)),
+                  trailing: _bottomNavBarItemIndex == 0
+                      ? Text(brigadeTask.status, style: const TextStyle(color: Colors.red, fontSize: 18)) :_bottomNavBarItemIndex == 1
+                      ? Text(brigadeTask.status,
+                      style: TextStyle(color: brigadeTask.status == 'В пути' ? Colors.orangeAccent[700] : Colors.yellow[700], fontSize: 18)) : _bottomNavBarItemIndex == 2
+                      ? Text(brigadeTask.status, style: const TextStyle(color: Colors.green, fontSize: 18)) : null,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 15),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(date! + " в " + brigadeTask.time,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(brigadeTask.address,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                      const SizedBox(height: 5),
+                      brigadeTask.note1 != '' || brigadeTask.note2 != '' ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Примечание', style: TextStyle(fontSize: 20, color: Colors.grey[700])),
+                        ],
+                      ) : Container(),
+                      brigadeTask.note1 != '' ? Text(brigadeTask.note1, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
+                      brigadeTask.note2 != '' ? Text(brigadeTask.note2, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
+                      const SizedBox(height: 5)
+                    ],
+                  ),
+                )
+              ]
+            )
           ),
           onTap: () {
             showDialog(
@@ -1394,7 +1420,7 @@ class _TasksPageState extends State<TaskPage>
                     unselectedLabelColor: Colors.grey,
                     labelColor: Colors.deepOrangeAccent,
                     tabs: const [
-                      Tab(text: 'Пользователя'),
+                      Tab(text: 'Админ'),
                       Tab(text: 'Бригаду')
                     ],
                   ),
