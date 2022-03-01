@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:chopper/chopper.dart';
 import 'package:data_table_2/data_table_2.dart';
@@ -21,6 +23,7 @@ import 'package:responsive_framework/responsive_framework.dart';
 import 'package:roundcheckbox/roundcheckbox.dart';
 import 'package:translit/translit.dart';
 
+
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if(Platform.isAndroid){
     await Firebase.initializeApp();
@@ -39,7 +42,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 }
 
-
 class TaskPage extends StatefulWidget {
   const TaskPage({Key? key}) : super(key: key);
 
@@ -50,7 +52,11 @@ class TaskPage extends StatefulWidget {
 class _TasksPageState extends State<TaskPage>
     with SingleTickerProviderStateMixin {
 
+  Socket? _socket;
+
+  String? status;
   int? _bottomNavBarItemIndex = 0;
+
 
   FocusNode? _ipAddressFocusNode;
   FocusNode? _nameFocusNode;
@@ -95,7 +101,6 @@ class _TasksPageState extends State<TaskPage>
     _statusList!.add(Status(status: 'На месте', color: Colors.yellow[700]));
     _statusList!.add(Status(status: 'Завершено', color: Colors.green));
 
-
     if(Platform.isAndroid) {
       FirebaseMessaging.instance.getInitialMessage();
       FirebaseMessaging.instance.subscribeToTopic(Translit().toTranslit(source: UserState.getBrigade()!));
@@ -118,16 +123,62 @@ class _TasksPageState extends State<TaskPage>
           );
         }
       });
-
-      FirebaseMessaging.onMessageOpenedApp.listen((message){
-
-      });
     }
+
+
+    Socket.connect('192.168.0.38', 4567).then((socket){
+      print('Connected to: ''${socket.remoteAddress.address}:${socket.remotePort}');
+      _socket = socket;
+
+      if(Platform.isAndroid){
+        _socket!.listen((events) {
+          String event = utf8.decode(events);
+          if(event.contains('status')){
+            String status = event.split('-')[1].toString();
+            switch (status) {
+              case 'Не выполнено':
+                setState(() {
+                  _bottomNavBarItemIndex = 0;
+                });
+                break;
+              case 'В пути':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'На месте':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'Завершено':
+                setState(() {
+                  _bottomNavBarItemIndex = 2;
+                });
+                break;
+            }
+          }
+        });
+      }else{
+        _socket!.listen((events) {
+          String event = utf8.decode(events);
+          if(event.contains('status')) {
+            setState((){
+              status = event.split('-')[1].toString();
+              print(status);
+            });
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     super.dispose();
+
+    _socket!.destroy();
+
     _ipAddressFocusNode!.dispose();
     _nameFocusNode!.dispose();
     _passwordFocusNode!.dispose();
@@ -147,7 +198,9 @@ class _TasksPageState extends State<TaskPage>
             actions: [
               !Platform.isAndroid ? IconButton(
                 icon: const Icon(Icons.calendar_today_outlined),
-                onPressed: () => null,
+                onPressed: () {
+
+                },
               ) : Container(),
               !Platform.isAndroid ? IconButton(
                 icon: const Icon(Icons.add),
@@ -630,7 +683,6 @@ class _TasksPageState extends State<TaskPage>
 
   // Building tasks table
   Widget buildTasksTable(List<TaskServerModel>? _tasksList) {
-    String? status = 'Не выполнено';
     return SizedBox.expand(
       child: DataTable(
         columnSpacing: 3,
@@ -652,7 +704,8 @@ class _TasksPageState extends State<TaskPage>
         rows: List<DataRow2>.generate(_tasksList!.length, (index) {
           TaskServerModel task = _tasksList[index];
           String? brigadesValue;
-          String? status = task.status;
+          status = task.status;
+
           if(task.brigade != ''){
             brigadesValue = _taskList![index].brigade;
           }
@@ -765,6 +818,7 @@ class _TasksPageState extends State<TaskPage>
                             'status' : status
                           };
                           ServerSideApi.create(UserState.temporaryIp, 1).updateStatus(data);
+                          _socket!.write('status-$status');
                         });
                       },
                       items: _statusList!.map<
@@ -957,6 +1011,7 @@ class _TasksPageState extends State<TaskPage>
                                             'status': 'В пути'
                                           };
                                           Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
+                                          _socket!.write('status-В пути');
                                           if (response.body == 'status_updated') {
                                             Navigator.pop(context);
                                             setState(() {});
@@ -983,6 +1038,7 @@ class _TasksPageState extends State<TaskPage>
                                         Response response = await ServerSideApi
                                             .create('192.168.0.38', 1)
                                             .updateStatus(data);
+                                        _socket!.write('status-На месте');
                                         if (response.body ==
                                             'status_updated') {
                                           Navigator.pop(context);
@@ -1009,6 +1065,7 @@ class _TasksPageState extends State<TaskPage>
                                         Response response = await ServerSideApi
                                             .create('192.168.0.38', 1)
                                             .updateStatus(data);
+                                        _socket!.write('status-Завершено');
                                         if (response.body ==
                                             'status_updated') {
                                           Navigator.pop(context);
