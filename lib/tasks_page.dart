@@ -54,9 +54,20 @@ class _TasksPageState extends State<TaskPage>
 
   Socket? _socket;
 
+  String? task;
   String? status;
-  int? _bottomNavBarItemIndex = 0;
+  String? date;
+  String? time;
+  String? address;
+  String? telephone;
+  String? note1;
+  String? note2;
 
+  StateSetter? statusState;
+  StateSetter? brigadesTaskState;
+  StateSetter? taskInfoState;
+
+  int? _bottomNavBarItemIndex = 0;
 
   FocusNode? _ipAddressFocusNode;
   FocusNode? _nameFocusNode;
@@ -101,6 +112,7 @@ class _TasksPageState extends State<TaskPage>
     _statusList!.add(Status(status: 'На месте', color: Colors.yellow[700]));
     _statusList!.add(Status(status: 'Завершено', color: Colors.green));
 
+
     if(Platform.isAndroid) {
       FirebaseMessaging.instance.getInitialMessage();
       FirebaseMessaging.instance.subscribeToTopic(Translit().toTranslit(source: UserState.getBrigade()!));
@@ -126,14 +138,17 @@ class _TasksPageState extends State<TaskPage>
     }
 
 
-    Socket.connect('192.168.0.38', 4567).then((socket){
-      print('Connected to: ''${socket.remoteAddress.address}:${socket.remotePort}');
+    Socket.connect('192.168.0.38', 8080).then((socket){
       _socket = socket;
 
       if(Platform.isAndroid){
         _socket!.listen((events) {
           String event = utf8.decode(events);
-          if(event.contains('status')){
+          if(event.contains('task')){
+            brigadesTaskState!((){
+              task = event.split('+')[0].split('-')[1].toString();
+            });
+          }else if(event.contains('status')){
             String status = event.split('-')[1].toString();
             switch (status) {
               case 'Не выполнено':
@@ -157,15 +172,38 @@ class _TasksPageState extends State<TaskPage>
                 });
                 break;
             }
+          }else if(event.contains('note1')){
+            brigadesTaskState!((){
+              note1 = event.split('-')[1].toString();
+            });
+          }else if(event.contains('note2')){
+            brigadesTaskState!((){
+              note2 = event.split('-')[1].toString();
+            });
+          }else if(event.contains('address')){
+            brigadesTaskState!((){
+              address = event.split('-')[1].toString();
+            });
+          }else if(event.contains('telephone')){
+            taskInfoState!((){
+              telephone = event.split('-')[1].toString();
+            });
+          }else if(event.contains('date')){
+            brigadesTaskState!((){
+              date = event.split('-')[1].toString();
+            });
+          }else if(event.contains('time')){
+            brigadesTaskState!((){
+              time = event.split('-')[1].toString();
+            });
           }
         });
       }else{
         _socket!.listen((events) {
           String event = utf8.decode(events);
           if(event.contains('status')) {
-            setState((){
+            statusState!((){
               status = event.split('-')[1].toString();
-              print(status);
             });
           }
         });
@@ -176,8 +214,6 @@ class _TasksPageState extends State<TaskPage>
   @override
   void dispose() {
     super.dispose();
-
-    _socket!.destroy();
 
     _ipAddressFocusNode!.dispose();
     _nameFocusNode!.dispose();
@@ -779,6 +815,7 @@ class _TasksPageState extends State<TaskPage>
                         };
                         ServerSideApi.create(UserState.temporaryIp, 1)
                             .editNotes1(data);
+                        _socket!.write('note1-$text');
                       },
                     )
                 )),
@@ -801,12 +838,14 @@ class _TasksPageState extends State<TaskPage>
                         };
                         ServerSideApi.create(UserState.temporaryIp, 1)
                             .editNotes2(data);
+                        _socket!.write('note2-$text');
                       },
                     )
                 )),
                 DataCell(Text(task.addedBy)),
                 DataCell(StatefulBuilder(
                   builder: (context, setState){
+                    statusState = setState;
                     return DropdownButton<String>(
                       value: status,
                       onChanged: (String? value) {
@@ -886,57 +925,70 @@ class _TasksPageState extends State<TaskPage>
       itemBuilder: (context, index) {
         TaskServerModel brigadeTask = _brigadeTaskList[index];
         String? formattedDate = dateFormatter.format(DateTime.now());
-        String? date;
+
+        task = brigadeTask.task;
+        time = brigadeTask.time;
+        telephone = brigadeTask.telephone;
+        address = brigadeTask.address;
+        note1 = brigadeTask.note1;
+        note2 = brigadeTask.note2;
+
         if (formattedDate == brigadeTask.date) {
           date = "Сегодня";
         } else {
           date = brigadeTask.date;
         }
+
         return GestureDetector(
-          child: Card(
-            elevation: 5,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                ListTile(
-                  title: Text(brigadeTask.task, style: TextStyle(
-                      color: Color(int.parse('0x' + brigadeTask.color)),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20)),
-                  trailing: _bottomNavBarItemIndex == 0
-                      ? Text(brigadeTask.status, style: const TextStyle(color: Colors.red, fontSize: 18)) :_bottomNavBarItemIndex == 1
-                      ? Text(brigadeTask.status,
-                      style: TextStyle(color: brigadeTask.status == 'В пути' ? Colors.orangeAccent[700] : Colors.yellow[700], fontSize: 18)) : _bottomNavBarItemIndex == 2
-                      ? Text(brigadeTask.status, style: const TextStyle(color: Colors.green, fontSize: 18)) : null,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 15),
+          child: StatefulBuilder(
+            builder: (context, setState){
+              brigadesTaskState = setState;
+              return Card(
+                  elevation: 5,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(date! + " в " + brigadeTask.time,
-                        style: const TextStyle(fontSize: 20),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(brigadeTask.address,
-                        style: const TextStyle(fontSize: 20),
-                      ),
-                      const SizedBox(height: 5),
-                      brigadeTask.note1 != '' || brigadeTask.note2 != '' ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('Примечание', style: TextStyle(fontSize: 20, color: Colors.grey[700])),
-                        ],
-                      ) : Container(),
-                      brigadeTask.note1 != '' ? Text(brigadeTask.note1, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
-                      brigadeTask.note2 != '' ? Text(brigadeTask.note2, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
-                      const SizedBox(height: 5)
-                    ],
-                  ),
-                )
-              ]
-            )
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        ListTile(
+                          title: Text(task!, style: TextStyle(
+                              color: Color(int.parse('0x' + brigadeTask.color)),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20)),
+                          trailing: _bottomNavBarItemIndex == 0
+                              ? Text(brigadeTask.status, style: const TextStyle(color: Colors.red, fontSize: 18)) :_bottomNavBarItemIndex == 1
+                              ? Text(brigadeTask.status,
+                              style: TextStyle(color: brigadeTask.status == 'В пути' ? Colors.orangeAccent[700] : Colors.yellow[700], fontSize: 18)) : _bottomNavBarItemIndex == 2
+                              ? Text(brigadeTask.status, style: const TextStyle(color: Colors.green, fontSize: 18)) : null,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 15),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(date! + " в " + time!,
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(address!,
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(height: 5),
+                              note1 != '' || note2 != '' ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Примечание', style: TextStyle(fontSize: 20, color: Colors.grey[700])),
+                                ],
+                              ) : Container(),
+                              note1 != '' ? Text(note1!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
+                              note2 != '' ? Text(note2!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
+                              const SizedBox(height: 5)
+                            ],
+                          ),
+                        )
+                      ]
+                  )
+              );
+            },
           ),
           onTap: () {
             showDialog(
@@ -944,6 +996,7 @@ class _TasksPageState extends State<TaskPage>
                 builder: (context) {
                   return StatefulBuilder(
                     builder: (context, dialogState) {
+                      taskInfoState = dialogState;
                       return SizedBox(
                         child: SimpleDialog(
                           title: const Text(
@@ -970,16 +1023,16 @@ class _TasksPageState extends State<TaskPage>
                                   ),
                                   const Divider(height: 1),
                                   ListTile(
-                                    title: Text(brigadeTask.address),
+                                    title: Text(address!),
                                     leading: const Icon(
                                         Icons.add_location_rounded),
                                   ),
                                   const Divider(height: 1),
                                   ListTile(
-                                    title: Text(brigadeTask.telephone),
+                                    title: Text(telephone!),
                                     leading: const Icon(Icons.phone),
                                     onTap: () {
-                                      launch('tel://${brigadeTask.telephone}');
+                                      launch('tel://${telephone!}');
                                     },
                                   ),
                                   const Divider(height: 1),
@@ -2206,13 +2259,18 @@ class _TasksPageState extends State<TaskPage>
       'status' : status
     };
 
-    Response response = await ServerSideApi.create(UserState.temporaryIp, 1)
-        .editTask(data);
+    Response response = await ServerSideApi.create(UserState.temporaryIp, 1).editTask(data);
     if (response.body == 'task_edited') {
       _showMessage!.show(context, 7);
       Navigator.pop(context);
       setState(() {});
     }
+
+    _socket!.write('task-$task+');
+    _socket!.write('address-$address+');
+    _socket!.write('telephone-$telephone+');
+    _socket!.write('date-$date+');
+    _socket!.write('time-$time+');
   }
 
   // Showing sign out dialog
@@ -2236,7 +2294,10 @@ class _TasksPageState extends State<TaskPage>
     Widget _cancelButton = TextButton(
         child: const Text(
             'Отмена', style: TextStyle(color: Colors.deepOrangeAccent)),
-        onPressed: () => Navigator.pop(context));
+        onPressed: (){
+          Navigator.pop(context);
+          _socket!.destroy();
+        });
 
     AlertDialog dialog = AlertDialog(
         title: const Text('Выйти из аккаунта'),
