@@ -62,6 +62,8 @@ class _TasksPageState extends State<TaskPage>
   String? telephone;
   String? note1;
   String? note2;
+  String? color;
+  String? isUrgent;
 
   StateSetter? statusState;
   StateSetter? brigadesTaskState;
@@ -95,6 +97,8 @@ class _TasksPageState extends State<TaskPage>
     super.initState();
     Tasks.initPreferences();
     Brigades.initPreferences();
+
+    _listenSocket();
 
     _tasksFocusNode = FocusNode();
     _ipAddressFocusNode = FocusNode();
@@ -137,78 +141,6 @@ class _TasksPageState extends State<TaskPage>
       });
     }
 
-
-    Socket.connect('192.168.0.38', 8080).then((socket){
-      _socket = socket;
-
-      if(Platform.isAndroid){
-        _socket!.listen((events) {
-          String event = utf8.decode(events);
-          if(event.contains('task')){
-            brigadesTaskState!((){
-              task = event.split('+')[0].split('-')[1].toString();
-            });
-          }else if(event.contains('status')){
-            String status = event.split('-')[1].toString();
-            switch (status) {
-              case 'Не выполнено':
-                setState(() {
-                  _bottomNavBarItemIndex = 0;
-                });
-                break;
-              case 'В пути':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'На месте':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'Завершено':
-                setState(() {
-                  _bottomNavBarItemIndex = 2;
-                });
-                break;
-            }
-          }else if(event.contains('note1')){
-            brigadesTaskState!((){
-              note1 = event.split('-')[1].toString();
-            });
-          }else if(event.contains('note2')){
-            brigadesTaskState!((){
-              note2 = event.split('-')[1].toString();
-            });
-          }else if(event.contains('address')){
-            brigadesTaskState!((){
-              address = event.split('-')[1].toString();
-            });
-          }else if(event.contains('telephone')){
-            taskInfoState!((){
-              telephone = event.split('-')[1].toString();
-            });
-          }else if(event.contains('date')){
-            brigadesTaskState!((){
-              date = event.split('-')[1].toString();
-            });
-          }else if(event.contains('time')){
-            brigadesTaskState!((){
-              time = event.split('-')[1].toString();
-            });
-          }
-        });
-      }else{
-        _socket!.listen((events) {
-          String event = utf8.decode(events);
-          if(event.contains('status')) {
-            statusState!((){
-              status = event.split('-')[1].toString();
-            });
-          }
-        });
-      }
-    });
   }
 
   @override
@@ -815,7 +747,11 @@ class _TasksPageState extends State<TaskPage>
                         };
                         ServerSideApi.create(UserState.temporaryIp, 1)
                             .editNotes1(data);
-                        _socket!.write('note1-$text');
+                        var note1SocketData = {
+                          'brigade' : brigadesValue,
+                          'note1' : text
+                        };
+                        _socket!.write(json.encode(note1SocketData));
                       },
                     )
                 )),
@@ -838,7 +774,11 @@ class _TasksPageState extends State<TaskPage>
                         };
                         ServerSideApi.create(UserState.temporaryIp, 1)
                             .editNotes2(data);
-                        _socket!.write('note2-$text');
+                        var note2SocketData = {
+                          'brigade' : brigadesValue,
+                          'note2' : text
+                        };
+                        _socket!.write(json.encode(note2SocketData));
                       },
                     )
                 )),
@@ -857,7 +797,11 @@ class _TasksPageState extends State<TaskPage>
                             'status' : status
                           };
                           ServerSideApi.create(UserState.temporaryIp, 1).updateStatus(data);
-                          _socket!.write('status-$status');
+                          var socketData = {
+                            'brigade' : brigadesValue,
+                            'status' : status
+                          };
+                          _socket!.write(json.encode(socketData));
                         });
                       },
                       items: _statusList!.map<
@@ -932,6 +876,8 @@ class _TasksPageState extends State<TaskPage>
         address = brigadeTask.address;
         note1 = brigadeTask.note1;
         note2 = brigadeTask.note2;
+        color = brigadeTask.color;
+        isUrgent = brigadeTask.isUrgent;
 
         if (formattedDate == brigadeTask.date) {
           date = "Сегодня";
@@ -951,7 +897,7 @@ class _TasksPageState extends State<TaskPage>
                       children: [
                         ListTile(
                           title: Text(task!, style: TextStyle(
-                              color: Color(int.parse('0x' + brigadeTask.color)),
+                              color: Color(int.parse('0x' + color!)),
                               fontWeight: FontWeight.bold,
                               fontSize: 20)),
                           trailing: _bottomNavBarItemIndex == 0
@@ -1037,7 +983,7 @@ class _TasksPageState extends State<TaskPage>
                                   ),
                                   const Divider(height: 1),
                                   ListTile(
-                                      title: Text(brigadeTask.isUrgent == '1'
+                                      title: Text(isUrgent == '1'
                                           ? "Срочно"
                                           : "Не срочно"),
                                       leading: const Icon(
@@ -1048,16 +994,11 @@ class _TasksPageState extends State<TaskPage>
                                     width: 300,
                                     child: FloatingActionButton.extended(
                                         label: const Text('В пути'),
-                                        backgroundColor: brigadeTask.status ==
-                                            'В пути' ||
-                                            brigadeTask.status == 'Завершён' || brigadeTask.status == 'На месте'
-                                            ? Colors.grey
-                                            : Colors.orangeAccent[700],
-                                        onPressed: brigadeTask.status ==
-                                            'В пути' ||
-                                            brigadeTask.status == 'Завершён' || brigadeTask.status == 'На месте'
-                                            ? null
-                                            : () async {
+                                        backgroundColor: brigadeTask.status == 'Не выполнено'
+                                            ? Colors.orangeAccent[700]
+                                            : Colors.grey,
+                                        onPressed: brigadeTask.status == 'Не выполнено'
+                                            ? () async {
                                           var data = {
                                             'ip': '192.168.0.38',
                                             'id': brigadeTask.id,
@@ -1069,7 +1010,7 @@ class _TasksPageState extends State<TaskPage>
                                             Navigator.pop(context);
                                             setState(() {});
                                           }
-                                        }
+                                        } : null
                                     ),
                                   ),
                                   const SizedBox(height: 10),
@@ -1077,12 +1018,10 @@ class _TasksPageState extends State<TaskPage>
                                     width: 300,
                                     child: FloatingActionButton.extended(
                                       label: const Text('На месте'),
-                                      backgroundColor: brigadeTask.status ==
-                                          'В пути'
+                                      backgroundColor: brigadeTask.status == 'В пути'
                                           ? Colors.yellow[700]
                                           : Colors.grey,
-                                      onPressed: brigadeTask.status ==
-                                          'В пути' ? () async {
+                                      onPressed: brigadeTask.status == 'В пути' ? () async {
                                         var data = {
                                           'ip': '192.168.0.38',
                                           'id': brigadeTask.id,
@@ -1107,7 +1046,7 @@ class _TasksPageState extends State<TaskPage>
                                       label: const Text('Завершено'),
                                       backgroundColor: brigadeTask.status == 'На месте'
                                           ? Colors.green[700]
-                                          : Colors.grey,
+                                          : brigadeTask.status == 'Завершено' ? Colors.grey : Colors.grey,
                                       onPressed: brigadeTask.status == 'На месте'
                                           ? () async {
                                         var data = {
@@ -1124,7 +1063,7 @@ class _TasksPageState extends State<TaskPage>
                                           Navigator.pop(context);
                                           setState(() {});
                                         }
-                                      } : null,
+                                      } : null
                                     ),
                                   ),
                                   const SizedBox(height: 10),
@@ -2234,8 +2173,7 @@ class _TasksPageState extends State<TaskPage>
   }
 
   // Edit task to server
-  void _editTask(TaskServerModel taskModel, List<String> options,
-      List<TextEditingController> dateAndTime, bool isUrgent, String? status) async {
+  void _editTask(TaskServerModel taskModel, List<String> options, List<TextEditingController> dateAndTime, bool isUrgent, String? status) async {
     String task = options[0].toString();
     String brigade = options[1].toString();
     String color = options[2].toString();
@@ -2266,11 +2204,19 @@ class _TasksPageState extends State<TaskPage>
       setState(() {});
     }
 
-    _socket!.write('task-$task+');
-    _socket!.write('address-$address+');
-    _socket!.write('telephone-$telephone+');
-    _socket!.write('date-$date+');
-    _socket!.write('time-$time+');
+    var socketData = {
+      'task' : task,
+      'brigade': brigade,
+      'address' : address,
+      'date' : date,
+      'time' : time,
+      'telephone' : telephone,
+      'color': color,
+      'urgent': isUrgent == true ? 1 : 0,
+    };
+
+    String encodedJson = json.encode(socketData);
+    _socket!.write(encodedJson);
   }
 
   // Showing sign out dialog
@@ -2309,5 +2255,111 @@ class _TasksPageState extends State<TaskPage>
         builder: (context) {
           return dialog;
         });
+  }
+
+  // Listening to socket
+  void _listenSocket(){
+    Socket.connect('192.168.0.38', 8080).then((socket) {
+      _socket = socket;
+
+      if(Platform.isAndroid){
+        _socket!.listen((data) {
+          Map<String, dynamic> eventMap = json.decode(utf8.decode(data));
+          if(eventMap['brigade'] == UserState.getBrigade()) {
+            eventMap.forEach((key, value) {
+              switch(key) {
+                case 'task':
+                  if(eventMap['task'] != null){
+                    brigadesTaskState!((){
+                      task = eventMap['task'];
+                    });
+                  }
+                  break;
+                case 'address':
+                  if(eventMap['address'] != null){
+                    brigadesTaskState!((){
+                      address = eventMap['address'];
+                    });
+                  }
+                  break;
+                case 'color':
+                  if(eventMap['color'] != null){
+                    brigadesTaskState!((){
+                      color = eventMap['color'];
+                    });
+                  }
+                  break;
+                case 'date':
+                  if(eventMap['date'] != null){
+                    brigadesTaskState!((){
+                      date = eventMap['date'];
+                    });
+                  }
+                  break;
+                case 'time':
+                  if(eventMap['time'] != null){
+                    brigadesTaskState!((){
+                      time = eventMap['time'];
+                    });
+                  }
+                  break;
+                case 'note1':
+                  if(eventMap['note1'] != null){
+                    brigadesTaskState!((){
+                      note1 = eventMap['note1'];
+                    });
+                  }
+                  break;
+                case 'note2':
+                  if(eventMap['note2'] != null){
+                    brigadesTaskState!((){
+                      note2 = eventMap['note2'];
+                    });
+                  }
+                  break;
+              }
+            });
+
+            if(eventMap['telephone'] != null){
+              telephone = eventMap['telephone'];
+            }else if(eventMap['urgent'] != null){
+              isUrgent = eventMap['urgent'].toString();
+            }
+
+            switch (eventMap['status']) {
+              case 'Не выполнено':
+                setState(() {
+                  _bottomNavBarItemIndex = 0;
+                });
+                break;
+              case 'В пути':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'На месте':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'Завершено':
+                setState(() {
+                  _bottomNavBarItemIndex = 2;
+                });
+                break;
+            }
+          }
+        });
+      }else{
+        _socket!.listen((events) {
+          String event = utf8.decode(events);
+          if(event.contains('status')) {
+            statusState!((){
+              status = event.split('-')[1].toString();
+            });
+          }
+        });
+      }
+    });
   }
 }
