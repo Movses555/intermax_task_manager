@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:chopper/chopper.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intermax_task_manager/Status%20Data/status_model.dart';
+import 'package:intermax_task_manager/Stopwatch/stopwatch.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +68,14 @@ class _TasksPageState extends State<TaskPage>
   String? color;
   String? isUrgent;
 
+  String? onWayHoursStr = '00';
+  String? onWayMinutesStr = '00';
+  String? onWaySecondsStr = '00';
+
+  String? workStartedHoursStr = '00';
+  String? workStartedMinutesStr = '00';
+  String? workStartedSecondsStr = '00';
+
   StateSetter? statusState;
   StateSetter? brigadesTaskState;
   StateSetter? taskInfoState;
@@ -90,6 +101,18 @@ class _TasksPageState extends State<TaskPage>
   List<TaskServerModel>? _brigadeTaskList;
   List<Status>? _statusList = [];
 
+  Stream<int>? onWayTimerStream;
+  Stream<int>? workStartedTimerStream;
+
+  StreamSubscription<int>? onWayTimerSubscription;
+  StreamSubscription<int>? workStartedTimerSubscription;
+
+  StopWatch? stopWatch;
+
+  Uint8List? androidSocketData;
+  Uint8List? data;
+
+
   var dateFormatter = DateFormat('dd.MM.yyyy');
 
   @override
@@ -98,7 +121,22 @@ class _TasksPageState extends State<TaskPage>
     Tasks.initPreferences();
     Brigades.initPreferences();
 
-    _listenSocket();
+    stopWatch = StopWatch.init();
+
+    Socket.connect('192.168.0.38', 8080).then((socket){
+      _socket = socket;
+      socket.listen((event) {
+        if(Platform.isAndroid){
+          brigadesTaskState!((){
+            androidSocketData = event;
+          });
+        }else{
+          statusState!((){
+            data = event;
+          });
+        }
+      });
+    });
 
     _tasksFocusNode = FocusNode();
     _ipAddressFocusNode = FocusNode();
@@ -146,6 +184,8 @@ class _TasksPageState extends State<TaskPage>
   @override
   void dispose() {
     super.dispose();
+
+    _socket!.destroy();
 
     _ipAddressFocusNode!.dispose();
     _nameFocusNode!.dispose();
@@ -674,6 +714,17 @@ class _TasksPageState extends State<TaskPage>
           String? brigadesValue;
           status = task.status;
 
+          if(data != null) {
+            Map<String, dynamic> eventMap = json.decode(utf8.decode(data!));
+            String taskId = eventMap['id'];
+            String taskStatus = eventMap['status'];
+            if (taskId == task.id) {
+              statusState!(() {
+                status = taskStatus;
+              });
+            }
+          }
+
           if(task.brigade != ''){
             brigadesValue = _taskList![index].brigade;
           }
@@ -748,6 +799,7 @@ class _TasksPageState extends State<TaskPage>
                         ServerSideApi.create(UserState.temporaryIp, 1)
                             .editNotes1(data);
                         var note1SocketData = {
+                          'id' : task.id,
                           'brigade' : brigadesValue,
                           'note1' : text
                         };
@@ -775,6 +827,7 @@ class _TasksPageState extends State<TaskPage>
                         ServerSideApi.create(UserState.temporaryIp, 1)
                             .editNotes2(data);
                         var note2SocketData = {
+                          'id' : task.id,
                           'brigade' : brigadesValue,
                           'note2' : text
                         };
@@ -798,14 +851,14 @@ class _TasksPageState extends State<TaskPage>
                           };
                           ServerSideApi.create(UserState.temporaryIp, 1).updateStatus(data);
                           var socketData = {
+                            'id' : task.id,
                             'brigade' : brigadesValue,
                             'status' : status
                           };
                           _socket!.write(json.encode(socketData));
                         });
                       },
-                      items: _statusList!.map<
-                          DropdownMenuItem<String>>((status) {
+                      items: _statusList!.map<DropdownMenuItem<String>>((status) {
                         return DropdownMenuItem(
                           value: status.status,
                           child: Text(status.status, style: TextStyle(color: status.color)),
@@ -878,6 +931,96 @@ class _TasksPageState extends State<TaskPage>
         note2 = brigadeTask.note2;
         color = brigadeTask.color;
         isUrgent = brigadeTask.isUrgent;
+
+        if(androidSocketData != null) {
+          Map<String, dynamic> eventMap = json.decode(utf8.decode(androidSocketData!));
+          String? brigade = eventMap['brigade'];
+          String? taskId = eventMap['id'];
+          if (brigade == UserState.getBrigade() && taskId == brigadeTask.id) {
+            eventMap.forEach((key, value) {
+              switch (key) {
+                case 'task':
+                  if (eventMap['task'] != null) {
+                    brigadesTaskState!(() {
+                      task = eventMap['task'];
+                    });
+                  }
+                  break;
+                case 'address':
+                  if (eventMap['address'] != null) {
+                    brigadesTaskState!(() {
+                      address = eventMap['address'];
+                    });
+                  }
+                  break;
+                case 'color':
+                  if (eventMap['color'] != null) {
+                    brigadesTaskState!(() {
+                      color = eventMap['color'];
+                    });
+                  }
+                  break;
+                case 'date':
+                  if (eventMap['date'] != null) {
+                    brigadesTaskState!(() {
+                      date = eventMap['date'];
+                    });
+                  }
+                  break;
+                case 'time':
+                  if (eventMap['time'] != null) {
+                    brigadesTaskState!(() {
+                      time = eventMap['time'];
+                    });
+                  }
+                  break;
+                case 'note1':
+                  if (eventMap['note1'] != null) {
+                    brigadesTaskState!(() {
+                      note1 = eventMap['note1'];
+                    });
+                  }
+                  break;
+                case 'note2':
+                  if (eventMap['note2'] != null) {
+                    brigadesTaskState!(() {
+                      note2 = eventMap['note2'];
+                    });
+                  }
+                  break;
+              }
+            });
+
+            if (eventMap['telephone'] != null) {
+              telephone = eventMap['telephone'];
+            } else if (eventMap['urgent'] != null) {
+              isUrgent = eventMap['urgent'].toString();
+            }
+
+            switch (eventMap['status']) {
+              case 'Не выполнено':
+                setState(() {
+                  _bottomNavBarItemIndex = 0;
+                });
+                break;
+              case 'В пути':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'На месте':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'Завершено':
+                setState(() {
+                  _bottomNavBarItemIndex = 2;
+                });
+                break;
+            }
+          }
+        }
 
         if (formattedDate == brigadeTask.date) {
           date = "Сегодня";
@@ -993,7 +1136,15 @@ class _TasksPageState extends State<TaskPage>
                                   SizedBox(
                                     width: 300,
                                     child: FloatingActionButton.extended(
-                                        label: const Text('В пути'),
+                                        label: Center(
+                                          child: Column(
+                                            children: [
+                                              const Text('В пути'),
+                                              const SizedBox(height: 0.5),
+                                              Text("$onWayHoursStr:$onWayMinutesStr:$onWaySecondsStr")
+                                            ],
+                                          ),
+                                        ),
                                         backgroundColor: brigadeTask.status == 'Не выполнено'
                                             ? Colors.orangeAccent[700]
                                             : Colors.grey,
@@ -1005,11 +1156,27 @@ class _TasksPageState extends State<TaskPage>
                                             'status': 'В пути'
                                           };
                                           Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
-                                          _socket!.write('status-В пути');
+
+                                          var socketData = {
+                                            'id' : brigadeTask.id,
+                                            'status' : 'В пути'
+                                          };
+
+                                          _socket!.write(json.encode(socketData));
+
                                           if (response.body == 'status_updated') {
                                             Navigator.pop(context);
                                             setState(() {});
                                           }
+
+                                          onWayTimerStream = stopWatch!.onWayStopWatchStream();
+                                          onWayTimerSubscription = onWayTimerStream!.listen((tick) {
+                                            taskInfoState!(() {
+                                              onWayHoursStr = ((tick / (60 * 60)) % 60).floor().toString().padLeft(2, '0');
+                                              onWayMinutesStr = ((tick / 60) % 60).floor().toString().padLeft(2, '0');
+                                              onWaySecondsStr = (tick % 60).floor().toString().padLeft(2, '0');
+                                            });
+                                          });
                                         } : null
                                     ),
                                   ),
@@ -1017,7 +1184,15 @@ class _TasksPageState extends State<TaskPage>
                                   SizedBox(
                                     width: 300,
                                     child: FloatingActionButton.extended(
-                                      label: const Text('На месте'),
+                                      label: Center(
+                                        child: Column(
+                                          children: [
+                                            const Text('На месте'),
+                                            const SizedBox(height: 0.5),
+                                            Text("$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr")
+                                          ],
+                                        ),
+                                      ),
                                       backgroundColor: brigadeTask.status == 'В пути'
                                           ? Colors.yellow[700]
                                           : Colors.grey,
@@ -1027,15 +1202,31 @@ class _TasksPageState extends State<TaskPage>
                                           'id': brigadeTask.id,
                                           'status': 'На месте'
                                         };
-                                        Response response = await ServerSideApi
-                                            .create('192.168.0.38', 1)
-                                            .updateStatus(data);
-                                        _socket!.write('status-На месте');
+                                        Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
+
+                                        var socketData = {
+                                          'id' : brigadeTask.id,
+                                          'status' : 'На месте'
+                                        };
+                                        _socket!.write(json.encode(socketData));
+
                                         if (response.body ==
                                             'status_updated') {
                                           Navigator.pop(context);
                                           setState(() {});
                                         }
+
+                                        onWayTimerSubscription!.cancel();
+                                        onWayTimerStream = null;
+
+                                        workStartedTimerStream = stopWatch!.workStartedStopWatchStream();
+                                        workStartedTimerSubscription = workStartedTimerStream!.listen((tick) {
+                                          taskInfoState!(() {
+                                            workStartedHoursStr = ((tick / (60 * 60)) % 60).floor().toString().padLeft(2, '0');
+                                            workStartedMinutesStr = ((tick / 60) % 60).floor().toString().padLeft(2, '0');
+                                            workStartedSecondsStr = (tick % 60).floor().toString().padLeft(2, '0');
+                                          });
+                                        });
                                       } : null,
                                     ),
                                   ),
@@ -1057,12 +1248,22 @@ class _TasksPageState extends State<TaskPage>
                                         Response response = await ServerSideApi
                                             .create('192.168.0.38', 1)
                                             .updateStatus(data);
-                                        _socket!.write('status-Завершено');
+
+                                        var socketData = {
+                                          'id' : brigadeTask.id,
+                                          'status' : 'Завершено'
+                                        };
+
+                                        _socket!.write(json.encode(socketData));
+
                                         if (response.body ==
                                             'status_updated') {
                                           Navigator.pop(context);
                                           setState(() {});
                                         }
+
+                                        workStartedTimerSubscription!.cancel();
+                                        workStartedTimerStream = null;
                                       } : null
                                     ),
                                   ),
@@ -2205,6 +2406,7 @@ class _TasksPageState extends State<TaskPage>
     }
 
     var socketData = {
+      'id' : taskModel.id,
       'task' : task,
       'brigade': brigade,
       'address' : address,
@@ -2257,109 +2459,4 @@ class _TasksPageState extends State<TaskPage>
         });
   }
 
-  // Listening to socket
-  void _listenSocket(){
-    Socket.connect('192.168.0.38', 8080).then((socket) {
-      _socket = socket;
-
-      if(Platform.isAndroid){
-        _socket!.listen((data) {
-          Map<String, dynamic> eventMap = json.decode(utf8.decode(data));
-          if(eventMap['brigade'] == UserState.getBrigade()) {
-            eventMap.forEach((key, value) {
-              switch(key) {
-                case 'task':
-                  if(eventMap['task'] != null){
-                    brigadesTaskState!((){
-                      task = eventMap['task'];
-                    });
-                  }
-                  break;
-                case 'address':
-                  if(eventMap['address'] != null){
-                    brigadesTaskState!((){
-                      address = eventMap['address'];
-                    });
-                  }
-                  break;
-                case 'color':
-                  if(eventMap['color'] != null){
-                    brigadesTaskState!((){
-                      color = eventMap['color'];
-                    });
-                  }
-                  break;
-                case 'date':
-                  if(eventMap['date'] != null){
-                    brigadesTaskState!((){
-                      date = eventMap['date'];
-                    });
-                  }
-                  break;
-                case 'time':
-                  if(eventMap['time'] != null){
-                    brigadesTaskState!((){
-                      time = eventMap['time'];
-                    });
-                  }
-                  break;
-                case 'note1':
-                  if(eventMap['note1'] != null){
-                    brigadesTaskState!((){
-                      note1 = eventMap['note1'];
-                    });
-                  }
-                  break;
-                case 'note2':
-                  if(eventMap['note2'] != null){
-                    brigadesTaskState!((){
-                      note2 = eventMap['note2'];
-                    });
-                  }
-                  break;
-              }
-            });
-
-            if(eventMap['telephone'] != null){
-              telephone = eventMap['telephone'];
-            }else if(eventMap['urgent'] != null){
-              isUrgent = eventMap['urgent'].toString();
-            }
-
-            switch (eventMap['status']) {
-              case 'Не выполнено':
-                setState(() {
-                  _bottomNavBarItemIndex = 0;
-                });
-                break;
-              case 'В пути':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'На месте':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'Завершено':
-                setState(() {
-                  _bottomNavBarItemIndex = 2;
-                });
-                break;
-            }
-          }
-        });
-      }else{
-        _socket!.listen((events) {
-          String event = utf8.decode(events);
-          if(event.contains('status')) {
-            statusState!((){
-              status = event.split('-')[1].toString();
-            });
-          }
-        });
-      }
-    });
-  }
 }
