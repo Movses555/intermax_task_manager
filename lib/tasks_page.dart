@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:chopper/chopper.dart';
 import 'package:data_table_2/data_table_2.dart';
@@ -109,10 +107,6 @@ class _TasksPageState extends State<TaskPage>
 
   StopWatch? stopWatch;
 
-  Uint8List? androidSocketData;
-  Uint8List? data;
-
-
   var dateFormatter = DateFormat('dd.MM.yyyy');
 
   @override
@@ -120,23 +114,7 @@ class _TasksPageState extends State<TaskPage>
     super.initState();
     Tasks.initPreferences();
     Brigades.initPreferences();
-
     stopWatch = StopWatch.init();
-
-    Socket.connect('192.168.0.38', 8080).then((socket){
-      _socket = socket;
-      socket.listen((event) {
-        if(Platform.isAndroid){
-          brigadesTaskState!((){
-            androidSocketData = event;
-          });
-        }else{
-          statusState!((){
-            data = event;
-          });
-        }
-      });
-    });
 
     _tasksFocusNode = FocusNode();
     _ipAddressFocusNode = FocusNode();
@@ -153,7 +131,6 @@ class _TasksPageState extends State<TaskPage>
     _statusList!.add(Status(status: 'В пути', color: Colors.orangeAccent[700]));
     _statusList!.add(Status(status: 'На месте', color: Colors.yellow[700]));
     _statusList!.add(Status(status: 'Завершено', color: Colors.green));
-
 
     if(Platform.isAndroid) {
       FirebaseMessaging.instance.getInitialMessage();
@@ -179,6 +156,116 @@ class _TasksPageState extends State<TaskPage>
       });
     }
 
+    Socket.connect('192.168.0.38', 8080).then((socket){
+      _socket = socket;
+      _socket!.listen((event) {
+        if(Platform.isAndroid) {
+          Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
+          String? brigade = eventMap['brigade'];
+          String? taskId = eventMap['id'];
+          for(var taskItem in _brigadeTaskList!) {
+            if(brigade == UserState.getBrigade() && taskItem.id == taskId){
+                eventMap.forEach((key, value) {
+                  switch (key) {
+                    case 'task':
+                      if (eventMap['task'] != null) {
+                        brigadesTaskState!(() {
+                          task = eventMap['task'];
+                        });
+                      }
+                      break;
+                    case 'address':
+                      if (eventMap['address'] != null) {
+                        brigadesTaskState!(() {
+                          address = eventMap['address'];
+                        });
+                      }
+                      break;
+                    case 'color':
+                      if (eventMap['color'] != null) {
+                        brigadesTaskState!(() {
+                          color = eventMap['color'];
+                        });
+                      }
+                      break;
+                    case 'date':
+                      if (eventMap['date'] != null) {
+                        brigadesTaskState!(() {
+                          date = eventMap['date'];
+                        });
+                      }
+                      break;
+                    case 'time':
+                      if (eventMap['time'] != null) {
+                        brigadesTaskState!(() {
+                          time = eventMap['time'];
+                        });
+                      }
+                      break;
+                    case 'note1':
+                      if (eventMap['note1'] != null) {
+                        brigadesTaskState!(() {
+                          note1 = eventMap['note1'];
+                        });
+                      }
+                      break;
+                    case 'note2':
+                      if (eventMap['note2'] != null) {
+                        brigadesTaskState!(() {
+                          note2 = eventMap['note2'];
+                        });
+                      }
+                      break;
+                    case 'telephone':
+                      if(eventMap['telephone'] != null){
+                        telephone = eventMap['telephone'];
+                      }
+                      break;
+                    case 'urgent':
+                      if(eventMap['urgent'] != null){
+                        isUrgent = eventMap['urgent'].toString();
+                      }
+                  }
+                });
+
+                switch (eventMap['status']) {
+                  case 'Не выполнено':
+                    setState(() {
+                      _bottomNavBarItemIndex = 0;
+                    });
+                    break;
+                  case 'В пути':
+                    setState(() {
+                      _bottomNavBarItemIndex = 1;
+                    });
+                    break;
+                  case 'На месте':
+                    setState(() {
+                      _bottomNavBarItemIndex = 1;
+                    });
+                    break;
+                  case 'Завершено':
+                    setState(() {
+                      _bottomNavBarItemIndex = 2;
+                    });
+                    break;
+                }
+            }
+          }
+        }else{
+          Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
+          String taskId = eventMap['id'];
+          String taskStatus = eventMap['status'];
+          for(var task in _taskList!) {
+            if(taskId == task.id) {
+              statusState!(() {
+                status = taskStatus;
+              });
+            }
+          }
+        }
+      });
+    });
   }
 
   @override
@@ -714,20 +801,10 @@ class _TasksPageState extends State<TaskPage>
           String? brigadesValue;
           status = task.status;
 
-          if(data != null) {
-            Map<String, dynamic> eventMap = json.decode(utf8.decode(data!));
-            String taskId = eventMap['id'];
-            String taskStatus = eventMap['status'];
-            if (taskId == task.id) {
-              statusState!(() {
-                status = taskStatus;
-              });
-            }
-          }
-
           if(task.brigade != ''){
             brigadesValue = _taskList![index].brigade;
           }
+
           List<TextEditingController> note1TextEditingControllers = List
               .generate(_tasksList.length, (index) {
             return TextEditingController();
@@ -736,6 +813,7 @@ class _TasksPageState extends State<TaskPage>
               .generate(_tasksList.length, (index) {
             return TextEditingController();
           });
+
           note1TextEditingControllers[index].value =
               note1TextEditingControllers[index].value.copyWith(
                   text: task.note1);
@@ -931,96 +1009,6 @@ class _TasksPageState extends State<TaskPage>
         note2 = brigadeTask.note2;
         color = brigadeTask.color;
         isUrgent = brigadeTask.isUrgent;
-
-        if(androidSocketData != null) {
-          Map<String, dynamic> eventMap = json.decode(utf8.decode(androidSocketData!));
-          String? brigade = eventMap['brigade'];
-          String? taskId = eventMap['id'];
-          if (brigade == UserState.getBrigade() && taskId == brigadeTask.id) {
-            eventMap.forEach((key, value) {
-              switch (key) {
-                case 'task':
-                  if (eventMap['task'] != null) {
-                    brigadesTaskState!(() {
-                      task = eventMap['task'];
-                    });
-                  }
-                  break;
-                case 'address':
-                  if (eventMap['address'] != null) {
-                    brigadesTaskState!(() {
-                      address = eventMap['address'];
-                    });
-                  }
-                  break;
-                case 'color':
-                  if (eventMap['color'] != null) {
-                    brigadesTaskState!(() {
-                      color = eventMap['color'];
-                    });
-                  }
-                  break;
-                case 'date':
-                  if (eventMap['date'] != null) {
-                    brigadesTaskState!(() {
-                      date = eventMap['date'];
-                    });
-                  }
-                  break;
-                case 'time':
-                  if (eventMap['time'] != null) {
-                    brigadesTaskState!(() {
-                      time = eventMap['time'];
-                    });
-                  }
-                  break;
-                case 'note1':
-                  if (eventMap['note1'] != null) {
-                    brigadesTaskState!(() {
-                      note1 = eventMap['note1'];
-                    });
-                  }
-                  break;
-                case 'note2':
-                  if (eventMap['note2'] != null) {
-                    brigadesTaskState!(() {
-                      note2 = eventMap['note2'];
-                    });
-                  }
-                  break;
-              }
-            });
-
-            if (eventMap['telephone'] != null) {
-              telephone = eventMap['telephone'];
-            } else if (eventMap['urgent'] != null) {
-              isUrgent = eventMap['urgent'].toString();
-            }
-
-            switch (eventMap['status']) {
-              case 'Не выполнено':
-                setState(() {
-                  _bottomNavBarItemIndex = 0;
-                });
-                break;
-              case 'В пути':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'На месте':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'Завершено':
-                setState(() {
-                  _bottomNavBarItemIndex = 2;
-                });
-                break;
-            }
-          }
-        }
 
         if (formattedDate == brigadeTask.date) {
           date = "Сегодня";
