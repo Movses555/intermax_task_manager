@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:chopper/chopper.dart';
-import 'package:data_table_2/data_table_2.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:intermax_task_manager/Location%20Service/location_service.dart';
+import 'package:intermax_task_manager/Maps%20API/maps.dart';
 import 'package:intermax_task_manager/Status%20Data/status_model.dart';
 import 'package:intermax_task_manager/Stopwatch/stopwatch.dart';
+import 'package:universal_platform/universal_platform.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -23,10 +24,11 @@ import 'package:intl/intl.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:roundcheckbox/roundcheckbox.dart';
 import 'package:translit/translit.dart';
-
+import 'package:web_socket_channel/html.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if(Platform.isAndroid){
+  if(UniversalPlatform.isAndroid){
     await Firebase.initializeApp();
     AwesomeNotifications().createNotification(
         content: NotificationContent(
@@ -53,7 +55,9 @@ class TaskPage extends StatefulWidget {
 class _TasksPageState extends State<TaskPage>
     with SingleTickerProviderStateMixin {
 
-  Socket? _socket;
+  HtmlWebSocketChannel? _htmlWebSocketChannel;
+  WebSocketChannel? _webSocketChannel;
+  LocationService? _locationService;
 
   String? task;
   String? status;
@@ -74,11 +78,19 @@ class _TasksPageState extends State<TaskPage>
   String? workStartedMinutesStr = '00';
   String? workStartedSecondsStr = '00';
 
+  String? onWayTime = '00:00:00';
+  String? workTime = '00:00:00';
+
   StateSetter? statusState;
   StateSetter? brigadesTaskState;
   StateSetter? taskInfoState;
+  StateSetter? mapTaskInfoState;
+  StateSetter? mapState;
 
   int? _bottomNavBarItemIndex = 0;
+
+  double? lat;
+  double? long;
 
   FocusNode? _ipAddressFocusNode;
   FocusNode? _nameFocusNode;
@@ -106,6 +118,7 @@ class _TasksPageState extends State<TaskPage>
   StreamSubscription<int>? workStartedTimerSubscription;
 
   StopWatch? stopWatch;
+  MapsAPI? maps;
 
   var dateFormatter = DateFormat('dd.MM.yyyy');
 
@@ -114,7 +127,9 @@ class _TasksPageState extends State<TaskPage>
     super.initState();
     Tasks.initPreferences();
     Brigades.initPreferences();
+
     stopWatch = StopWatch.init();
+    maps = MapsAPI.init();
 
     _tasksFocusNode = FocusNode();
     _ipAddressFocusNode = FocusNode();
@@ -132,7 +147,7 @@ class _TasksPageState extends State<TaskPage>
     _statusList!.add(Status(status: 'На месте', color: Colors.yellow[700]));
     _statusList!.add(Status(status: 'Завершено', color: Colors.green));
 
-    if(Platform.isAndroid) {
+    if(UniversalPlatform.isAndroid) {
       FirebaseMessaging.instance.getInitialMessage();
       FirebaseMessaging.instance.subscribeToTopic(Translit().toTranslit(source: UserState.getBrigade()!));
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -156,123 +171,152 @@ class _TasksPageState extends State<TaskPage>
       });
     }
 
-    Socket.connect('192.168.0.38', 8080).then((socket){
-      _socket = socket;
-      _socket!.listen((event) {
-        if(Platform.isAndroid) {
-          Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
-          String? brigade = eventMap['brigade'];
-          String? taskId = eventMap['id'];
-          for(var taskItem in _brigadeTaskList!) {
-            if(brigade == UserState.getBrigade() && taskItem.id == taskId){
-                eventMap.forEach((key, value) {
-                  switch (key) {
-                    case 'task':
-                      if (eventMap['task'] != null) {
-                        brigadesTaskState!(() {
-                          task = eventMap['task'];
-                        });
-                      }
-                      break;
-                    case 'address':
-                      if (eventMap['address'] != null) {
-                        brigadesTaskState!(() {
-                          address = eventMap['address'];
-                        });
-                      }
-                      break;
-                    case 'color':
-                      if (eventMap['color'] != null) {
-                        brigadesTaskState!(() {
-                          color = eventMap['color'];
-                        });
-                      }
-                      break;
-                    case 'date':
-                      if (eventMap['date'] != null) {
-                        brigadesTaskState!(() {
-                          date = eventMap['date'];
-                        });
-                      }
-                      break;
-                    case 'time':
-                      if (eventMap['time'] != null) {
-                        brigadesTaskState!(() {
-                          time = eventMap['time'];
-                        });
-                      }
-                      break;
-                    case 'note1':
-                      if (eventMap['note1'] != null) {
-                        brigadesTaskState!(() {
-                          note1 = eventMap['note1'];
-                        });
-                      }
-                      break;
-                    case 'note2':
-                      if (eventMap['note2'] != null) {
-                        brigadesTaskState!(() {
-                          note2 = eventMap['note2'];
-                        });
-                      }
-                      break;
-                    case 'telephone':
-                      if(eventMap['telephone'] != null){
-                        telephone = eventMap['telephone'];
-                      }
-                      break;
-                    case 'urgent':
-                      if(eventMap['urgent'] != null){
-                        isUrgent = eventMap['urgent'].toString();
-                      }
-                  }
-                });
-
-                switch (eventMap['status']) {
-                  case 'Не выполнено':
-                    setState(() {
-                      _bottomNavBarItemIndex = 0;
-                    });
-                    break;
-                  case 'В пути':
-                    setState(() {
-                      _bottomNavBarItemIndex = 1;
-                    });
-                    break;
-                  case 'На месте':
-                    setState(() {
-                      _bottomNavBarItemIndex = 1;
-                    });
-                    break;
-                  case 'Завершено':
-                    setState(() {
-                      _bottomNavBarItemIndex = 2;
-                    });
-                    break;
-                }
-            }
-          }
-        }else{
-          Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
-          String taskId = eventMap['id'];
-          String taskStatus = eventMap['status'];
-          for(var task in _taskList!) {
-            if(taskId == task.id) {
-              statusState!(() {
-                status = taskStatus;
+    if(UniversalPlatform.isWeb){
+      _htmlWebSocketChannel = HtmlWebSocketChannel.connect('ws://192.168.0.38:8080');
+      _htmlWebSocketChannel!.stream.listen((event) {
+        Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
+        String? taskId = eventMap['id'];
+        eventMap.forEach((key, value) {
+          switch(key){
+            case 'lat':
+              lat = eventMap['lat'];
+              break;
+            case 'long':
+              lat = eventMap['lat'];
+              break;
+            case 'onWayTime':
+              mapTaskInfoState!((){
+                onWayTime = eventMap['onWayTime'];
               });
+              break;
+            case 'workTime':
+              mapTaskInfoState!((){
+                workTime = eventMap['workTime'];
+              });
+              break;
+            case 'status':
+              for(var task in _taskList!) {
+                if(taskId == task.id) {
+                  statusState!(() {
+                    status = eventMap['status'];
+                  });
+                }
+              }
+              break;
+          }
+        });
+      });
+    }else if(UniversalPlatform.isAndroid){
+      _webSocketChannel = WebSocketChannel.connect(Uri.parse('ws://192.168.0.38:8080'));
+      _webSocketChannel!.stream.listen((event) {
+        Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
+        String? brigade = eventMap['brigade'];
+        String? taskId = eventMap['id'];
+        for(var taskItem in _brigadeTaskList!) {
+          if(brigade == UserState.getBrigade() && taskItem.id == taskId){
+            eventMap.forEach((key, value) {
+              switch (key) {
+                case 'task':
+                  if (eventMap['task'] != null) {
+                    brigadesTaskState!(() {
+                      task = eventMap['task'];
+                    });
+                  }
+                  break;
+                case 'address':
+                  if (eventMap['address'] != null) {
+                    brigadesTaskState!(() {
+                      address = eventMap['address'];
+                    });
+                  }
+                  break;
+                case 'color':
+                  if (eventMap['color'] != null) {
+                    brigadesTaskState!(() {
+                      color = eventMap['color'];
+                    });
+                  }
+                  break;
+                case 'date':
+                  if (eventMap['date'] != null) {
+                    brigadesTaskState!(() {
+                      date = eventMap['date'];
+                    });
+                  }
+                  break;
+                case 'time':
+                  if (eventMap['time'] != null) {
+                    brigadesTaskState!(() {
+                      time = eventMap['time'];
+                    });
+                  }
+                  break;
+                case 'note1':
+                  if (eventMap['note1'] != null) {
+                    brigadesTaskState!(() {
+                      note1 = eventMap['note1'];
+                    });
+                  }
+                  break;
+                case 'note2':
+                  if (eventMap['note2'] != null) {
+                    brigadesTaskState!(() {
+                      note2 = eventMap['note2'];
+                    });
+                  }
+                  break;
+                case 'telephone':
+                  if(eventMap['telephone'] != null){
+                    telephone = eventMap['telephone'];
+                  }
+                  break;
+                case 'urgent':
+                  if(eventMap['urgent'] != null){
+                    isUrgent = eventMap['urgent'].toString();
+                  }
+              }
+            });
+
+            switch (eventMap['status']) {
+              case 'Не выполнено':
+                setState(() {
+                  _bottomNavBarItemIndex = 0;
+                });
+                break;
+              case 'В пути':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'На месте':
+                setState(() {
+                  _bottomNavBarItemIndex = 1;
+                });
+                break;
+              case 'Завершено':
+                setState(() {
+                  _bottomNavBarItemIndex = 2;
+                });
+                break;
             }
           }
         }
       });
-    });
+      _locationService = LocationService.init(_webSocketChannel!);
+      _locationService!.checkLocationPermission();
+      _locationService!.getLocationChanges();
+    }
   }
 
   @override
   void dispose() {
     super.dispose();
 
-    _socket!.destroy();
+   if(UniversalPlatform.isWeb){
+     _htmlWebSocketChannel!.sink.close();
+   }else if(UniversalPlatform.isAndroid){
+     _webSocketChannel!.sink.close();
+   }
 
     _ipAddressFocusNode!.dispose();
     _nameFocusNode!.dispose();
@@ -291,25 +335,25 @@ class _TasksPageState extends State<TaskPage>
             backgroundColor: Colors.deepOrangeAccent,
             automaticallyImplyLeading: false,
             actions: [
-              !Platform.isAndroid ? IconButton(
+              !UniversalPlatform.isAndroid ? IconButton(
                 icon: const Icon(Icons.calendar_today_outlined),
                 onPressed: () {
 
                 },
               ) : Container(),
-              !Platform.isAndroid ? IconButton(
+              !UniversalPlatform.isAndroid ? IconButton(
                 icon: const Icon(Icons.add),
                 onPressed: () => _showAddTaskDialog(),
               ) : Container(),
-              !Platform.isAndroid ? IconButton(
+              !UniversalPlatform.isAndroid ? IconButton(
                 icon: const Icon(Icons.person_add),
                 onPressed: () => _showAddUserDialog(),
               ) : Container(),
-              !Platform.isAndroid ? IconButton(
+              !UniversalPlatform.isAndroid ? IconButton(
                 icon: const Icon(Icons.logout),
                 onPressed: () => _showSignOutDialog(),
               ) : Container(),
-              !Platform.isAndroid ? PopupMenuButton(
+              !UniversalPlatform.isAndroid ? PopupMenuButton(
                 icon: const Icon(Icons.settings),
                 tooltip: 'Настройки',
                 itemBuilder: (context) =>
@@ -654,7 +698,7 @@ class _TasksPageState extends State<TaskPage>
               ) : Container()
             ],
           ),
-          bottomNavigationBar: Platform.isAndroid ? BottomNavigationBar(
+          bottomNavigationBar: UniversalPlatform.isAndroid ? BottomNavigationBar(
               type: BottomNavigationBarType.fixed,
               iconSize: 30,
               elevation: 20.0,
@@ -697,7 +741,7 @@ class _TasksPageState extends State<TaskPage>
                 }
               },
             ) : null,
-          body: Platform.isAndroid ? getBrigadeTasks(_bottomNavBarItemIndex!) : getTasks()
+          body: UniversalPlatform.isAndroid ? getBrigadeTasks(_bottomNavBarItemIndex!) : getTasks()
       ),
       breakpoints: const [
         ResponsiveBreakpoint.resize(500, name: MOBILE),
@@ -782,21 +826,22 @@ class _TasksPageState extends State<TaskPage>
       child: DataTable(
         columnSpacing: 3,
         columns: const [
-          DataColumn2(label: Text('Задание'), size: ColumnSize.S),
-          DataColumn2(label: Text('Бригада'), size: ColumnSize.S),
-          DataColumn2(label: Text('Адрес'), size: ColumnSize.S),
-          DataColumn2(label: Text('Тел.'), size: ColumnSize.S),
-          DataColumn2(label: Text('Дата'), size: ColumnSize.S),
-          DataColumn2(label: Text('Время'), size: ColumnSize.S),
-          DataColumn2(label: Text('Срочно'), size: ColumnSize.S),
-          DataColumn2(label: Text('Примечание 1'), size: ColumnSize.S),
-          DataColumn2(label: Text('Примечание 2'), size: ColumnSize.S),
-          DataColumn2(label: Text('Пользователь'), size: ColumnSize.S),
-          DataColumn2(label: Text('Статус'), size: ColumnSize.S),
-          DataColumn2(label: Text(''), size: ColumnSize.L),
-          DataColumn2(label: Text(''), size: ColumnSize.L),
+          DataColumn(label: Text('Задание')),
+          DataColumn(label: Text('Бригада')),
+          DataColumn(label: Text('Адрес')),
+          DataColumn(label: Text('Тел.')),
+          DataColumn(label: Text('Дата')),
+          DataColumn(label: Text('Время')),
+          DataColumn(label: Text('Срочно')),
+          DataColumn(label: Text('Примечание 1')),
+          DataColumn(label: Text('Примечание 2')),
+          DataColumn(label: Text('Пользователь')),
+          DataColumn(label: Text('Статус')),
+          DataColumn(label: Text('')),
+          DataColumn(label: Text('')),
+          DataColumn(label: Text('')),
         ],
-        rows: List<DataRow2>.generate(_tasksList!.length, (index) {
+        rows: List<DataRow>.generate(_tasksList!.length, (index) {
           TaskServerModel task = _tasksList[index];
           String? brigadesValue;
           status = task.status;
@@ -820,7 +865,7 @@ class _TasksPageState extends State<TaskPage>
           note2TextEditingControllers[index].value =
               note2TextEditingControllers[index].value.copyWith(
                   text: task.note2);
-          return DataRow2(
+          return DataRow(
               cells: [
                 DataCell(Text(task.task, style: TextStyle(color: Color(int.parse('0x' + task.color))))),
                 DataCell(StatefulBuilder(
@@ -881,7 +926,8 @@ class _TasksPageState extends State<TaskPage>
                           'brigade' : brigadesValue,
                           'note1' : text
                         };
-                        _socket!.write(json.encode(note1SocketData));
+
+                        _htmlWebSocketChannel!.sink.add(json.encode(note1SocketData));
                       },
                     )
                 )),
@@ -909,7 +955,8 @@ class _TasksPageState extends State<TaskPage>
                           'brigade' : brigadesValue,
                           'note2' : text
                         };
-                        _socket!.write(json.encode(note2SocketData));
+
+                        _htmlWebSocketChannel!.sink.add(json.encode(note2SocketData));
                       },
                     )
                 )),
@@ -933,7 +980,8 @@ class _TasksPageState extends State<TaskPage>
                             'brigade' : brigadesValue,
                             'status' : status
                           };
-                          _socket!.write(json.encode(socketData));
+
+                          _htmlWebSocketChannel!.sink.add(json.encode(socketData));
                         });
                       },
                       items: _statusList!.map<DropdownMenuItem<String>>((status) {
@@ -985,8 +1033,88 @@ class _TasksPageState extends State<TaskPage>
                           return dialog;
                         });
                   },
+                )),
+                DataCell(IconButton(
+                  icon: const Icon(Icons.info),
+                  onPressed: () {
+                    double height = MediaQuery.of(context).size.height;
+                    double width = MediaQuery.of(context).size.width;
+                    showDialog(
+                        context: context,
+                        builder: (context) {
+                          return SimpleDialog(
+                            contentPadding: const EdgeInsets.all(5),
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  StatefulBuilder(
+                                    builder: (context, setState){
+                                      mapTaskInfoState = setState;
+                                      return SizedBox(
+                                          width: width/4,
+                                          child: Column(
+                                            children: [
+                                              const Text('Информация о задании', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                                              const SizedBox(height: 20),
+                                              Row(
+                                                children: [
+                                                  const Text('Задание: ', style: TextStyle(fontSize: 15)),
+                                                  Text('${task.task}', style: TextStyle(color: Color(int.parse('0x' + task.color)), fontSize: 15))
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  const Text('Бригада: ', style: TextStyle(fontSize: 15)),
+                                                  Text('${task.brigade}', style: const TextStyle(fontSize: 15))
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  const Text('Время в пути: ', style: TextStyle(fontSize: 15)),
+                                                  Text('$onWayTime', style: const TextStyle(fontSize: 15))
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  const Text('Время работы: ', style: TextStyle(fontSize: 15)),
+                                                  Text('$workTime', style: const TextStyle(fontSize: 15))
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  const Text('Статус: ', style: TextStyle(fontSize: 15)),
+                                                  Text('$status', style: const TextStyle(fontSize: 15))
+                                                ],
+                                              )
+                                            ],
+                                          )
+                                      );
+                                    },
+                                  ),
+                                  StatefulBuilder(
+                                    builder: (context, setState){
+                                      mapState = setState;
+                                      return SizedBox(
+                                        child: maps!.getMaps(lat, long),
+                                        height: height,
+                                        width: width/2,
+                                      );
+                                    },
+                                  )
+                                ],
+                              )
+                            ],
+                          );
+                        }
+                    );
+                  },
                 ))
-              ]
+              ],
           );
         }),
       ),
@@ -1150,7 +1278,8 @@ class _TasksPageState extends State<TaskPage>
                                             'status' : 'В пути'
                                           };
 
-                                          _socket!.write(json.encode(socketData));
+
+                                          _webSocketChannel!.sink.add(json.encode(socketData));
 
                                           if (response.body == 'status_updated') {
                                             Navigator.pop(context);
@@ -1163,6 +1292,12 @@ class _TasksPageState extends State<TaskPage>
                                               onWayHoursStr = ((tick / (60 * 60)) % 60).floor().toString().padLeft(2, '0');
                                               onWayMinutesStr = ((tick / 60) % 60).floor().toString().padLeft(2, '0');
                                               onWaySecondsStr = (tick % 60).floor().toString().padLeft(2, '0');
+
+                                              var timeData = {
+                                                'onWayTime' : '$onWayHoursStr:$onWayMinutesStr:$onWaySecondsStr',
+                                              };
+
+                                              _webSocketChannel!.sink.add(json.encode(timeData));
                                             });
                                           });
                                         } : null
@@ -1185,9 +1320,11 @@ class _TasksPageState extends State<TaskPage>
                                           ? Colors.yellow[700]
                                           : Colors.grey,
                                       onPressed: brigadeTask.status == 'В пути' ? () async {
+
                                         var data = {
                                           'ip': '192.168.0.38',
                                           'id': brigadeTask.id,
+                                          'on_way_time' : '$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr',
                                           'status': 'На месте'
                                         };
                                         Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
@@ -1196,10 +1333,10 @@ class _TasksPageState extends State<TaskPage>
                                           'id' : brigadeTask.id,
                                           'status' : 'На месте'
                                         };
-                                        _socket!.write(json.encode(socketData));
 
-                                        if (response.body ==
-                                            'status_updated') {
+                                        _webSocketChannel!.sink.add(json.encode(socketData));
+
+                                        if (response.body == 'status_updated') {
                                           Navigator.pop(context);
                                           setState(() {});
                                         }
@@ -1213,6 +1350,12 @@ class _TasksPageState extends State<TaskPage>
                                             workStartedHoursStr = ((tick / (60 * 60)) % 60).floor().toString().padLeft(2, '0');
                                             workStartedMinutesStr = ((tick / 60) % 60).floor().toString().padLeft(2, '0');
                                             workStartedSecondsStr = (tick % 60).floor().toString().padLeft(2, '0');
+
+                                            var timeData = {
+                                              'workTime' : '$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr',
+                                            };
+
+                                            _webSocketChannel!.sink.add(json.encode(timeData));
                                           });
                                         });
                                       } : null,
@@ -1228,11 +1371,14 @@ class _TasksPageState extends State<TaskPage>
                                           : brigadeTask.status == 'Завершено' ? Colors.grey : Colors.grey,
                                       onPressed: brigadeTask.status == 'На месте'
                                           ? () async {
+
                                         var data = {
                                           'ip': '192.168.0.38',
                                           'id': brigadeTask.id,
+                                          'work_time' : '$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr',
                                           'status': 'Завершено'
                                         };
+
                                         Response response = await ServerSideApi
                                             .create('192.168.0.38', 1)
                                             .updateStatus(data);
@@ -1242,7 +1388,7 @@ class _TasksPageState extends State<TaskPage>
                                           'status' : 'Завершено'
                                         };
 
-                                        _socket!.write(json.encode(socketData));
+                                        _webSocketChannel!.sink.add(json.encode(socketData));
 
                                         if (response.body ==
                                             'status_updated') {
@@ -1403,14 +1549,14 @@ class _TasksPageState extends State<TaskPage>
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(
-                              Platform.isAndroid ? 20.0 : 3.0)),
+                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                       label: const Text('Адрес'),
                       labelStyle: TextStyle(
                           color: _addressFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
-                            Platform.isAndroid ? 20.0 : 3.0),
+                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -1430,14 +1576,14 @@ class _TasksPageState extends State<TaskPage>
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(
-                              Platform.isAndroid ? 20.0 : 3.0)),
+                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                       label: const Text('Телефон'),
                       labelStyle: TextStyle(
                           color: _telephoneFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
-                            Platform.isAndroid ? 20.0 : 3.0),
+                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -1680,7 +1826,7 @@ class _TasksPageState extends State<TaskPage>
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(
-                                        Platform.isAndroid ? 20.0 : 3.0)),
+                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                                 label: const Text('IP Адрес'),
                                 labelStyle: TextStyle(
                                     color: _ipAddressFocusNode!.hasFocus
@@ -1688,7 +1834,7 @@ class _TasksPageState extends State<TaskPage>
                                         : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(
-                                      Platform.isAndroid ? 20.0 : 3.0),
+                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1709,14 +1855,14 @@ class _TasksPageState extends State<TaskPage>
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(
-                                        Platform.isAndroid ? 20.0 : 3.0)),
+                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                                 label: const Text('Имя пользователя'),
                                 labelStyle: TextStyle(
                                     color: _nameFocusNode!.hasFocus ? Colors
                                         .deepOrangeAccent : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(
-                                      Platform.isAndroid ? 20.0 : 3.0),
+                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1738,7 +1884,7 @@ class _TasksPageState extends State<TaskPage>
                               decoration: InputDecoration(
                                   border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(
-                                          Platform.isAndroid ? 20.0 : 3.0)),
+                                          UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                                   label: const Text('Пароль'),
                                   labelStyle: TextStyle(
                                       color: _passwordFocusNode!.hasFocus
@@ -1746,7 +1892,7 @@ class _TasksPageState extends State<TaskPage>
                                           : Colors.grey),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(
-                                        Platform.isAndroid ? 20.0 : 3.0),
+                                        UniversalPlatform.isAndroid ? 20.0 : 3.0),
                                     borderSide: const BorderSide(
                                       color: Colors.deepOrangeAccent,
                                       width: 2.0,
@@ -1773,7 +1919,7 @@ class _TasksPageState extends State<TaskPage>
                             FloatingActionButton.extended(
                                 backgroundColor: Colors.deepOrangeAccent,
                                 label: const Text('Зарегистрировать'),
-                                shape: !Platform.isAndroid
+                                shape: !UniversalPlatform.isAndroid
                                     ? const BeveledRectangleBorder(
                                     borderRadius: BorderRadius.zero
                                 )
@@ -1793,7 +1939,7 @@ class _TasksPageState extends State<TaskPage>
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(
-                                        Platform.isAndroid ? 20.0 : 3.0)),
+                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                                 label: const Text('IP Адрес'),
                                 labelStyle: TextStyle(
                                     color: _ipAddressFocusNode!.hasFocus
@@ -1801,7 +1947,7 @@ class _TasksPageState extends State<TaskPage>
                                         : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(
-                                      Platform.isAndroid ? 20.0 : 3.0),
+                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1822,14 +1968,14 @@ class _TasksPageState extends State<TaskPage>
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(
-                                        Platform.isAndroid ? 20.0 : 3.0)),
+                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                                 label: const Text('Имя пользователя'),
                                 labelStyle: TextStyle(
                                     color: _nameFocusNode!.hasFocus ? Colors
                                         .deepOrangeAccent : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(
-                                      Platform.isAndroid ? 20.0 : 3.0),
+                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1851,7 +1997,7 @@ class _TasksPageState extends State<TaskPage>
                               decoration: InputDecoration(
                                   border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(
-                                          Platform.isAndroid ? 20.0 : 3.0)),
+                                          UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                                   label: const Text('Пароль'),
                                   labelStyle: TextStyle(
                                       color: _passwordFocusNode!.hasFocus
@@ -1859,7 +2005,7 @@ class _TasksPageState extends State<TaskPage>
                                           : Colors.grey),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(
-                                        Platform.isAndroid ? 20.0 : 3.0),
+                                        UniversalPlatform.isAndroid ? 20.0 : 3.0),
                                     borderSide: const BorderSide(
                                       color: Colors.deepOrangeAccent,
                                       width: 2.0,
@@ -1910,7 +2056,7 @@ class _TasksPageState extends State<TaskPage>
                             FloatingActionButton.extended(
                                 backgroundColor: Colors.deepOrangeAccent,
                                 label: const Text('Зарегистрировать'),
-                                shape: !Platform.isAndroid
+                                shape: !UniversalPlatform.isAndroid
                                     ? const BeveledRectangleBorder(
                                     borderRadius: BorderRadius.zero
                                 )
@@ -2113,14 +2259,14 @@ class _TasksPageState extends State<TaskPage>
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(
-                              Platform.isAndroid ? 20.0 : 3.0)),
+                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                       label: const Text('Адрес'),
                       labelStyle: TextStyle(
                           color: _addressFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
-                            Platform.isAndroid ? 20.0 : 3.0),
+                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -2140,14 +2286,14 @@ class _TasksPageState extends State<TaskPage>
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(
-                              Platform.isAndroid ? 20.0 : 3.0)),
+                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
                       label: const Text('Телефон'),
                       labelStyle: TextStyle(
                           color: _telephoneFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
-                            Platform.isAndroid ? 20.0 : 3.0),
+                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -2405,8 +2551,7 @@ class _TasksPageState extends State<TaskPage>
       'urgent': isUrgent == true ? 1 : 0,
     };
 
-    String encodedJson = json.encode(socketData);
-    _socket!.write(encodedJson);
+    _htmlWebSocketChannel!.sink.add(json.encode(socketData));
   }
 
   // Showing sign out dialog
@@ -2421,7 +2566,7 @@ class _TasksPageState extends State<TaskPage>
         UserState.clearBrigade();
         Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskManagerMainPage()));
 
-        if(Platform.isAndroid){
+        if(UniversalPlatform.isAndroid){
           FirebaseMessaging.instance.unsubscribeFromTopic(Translit().toTranslit(source: UserState.getBrigade()!));
         }
       },
@@ -2430,9 +2575,13 @@ class _TasksPageState extends State<TaskPage>
     Widget _cancelButton = TextButton(
         child: const Text(
             'Отмена', style: TextStyle(color: Colors.deepOrangeAccent)),
-        onPressed: (){
+        onPressed: () {
           Navigator.pop(context);
-          _socket!.destroy();
+          if(UniversalPlatform.isWeb){
+            _htmlWebSocketChannel!.sink.close();
+          }else if(UniversalPlatform.isAndroid){
+            _webSocketChannel!.sink.close();
+          }
         });
 
     AlertDialog dialog = AlertDialog(
