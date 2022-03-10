@@ -44,6 +44,15 @@ class TaskServerModel{
   @JsonKey(name: 'status')
   var status;
 
+  @JsonKey(name: 'on_way_time')
+  var onWayTime;
+
+  @JsonKey(name: 'work_time')
+  var workTime;
+
+  @JsonKey(name: 'all_task_time')
+  var allTaskTime;
+
   TaskServerModel({
     this.id,
     this.task,
@@ -57,7 +66,10 @@ class TaskServerModel{
     this.note2,
     this.color,
     this.addedBy,
-    this.status
+    this.status,
+    this.onWayTime,
+    this.workTime,
+    this.allTaskTime
   });
 
   factory TaskServerModel.fromJson(Map<String, dynamic> json) => _$TaskServerModelFromJson(json);

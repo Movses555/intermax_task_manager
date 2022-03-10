@@ -282,40 +282,4 @@ class _MainPageState extends State<TaskManagerMainPage> {
       }
     });
   }
-
-  // Brigade login
-  Future _loginBrigade(List<TextEditingController> controllersList, bool isChecked) async {
-    var name = controllersList[1].text;
-    var password = controllersList[2].text;
-
-    Brigade? brigadeData;
-    var data = {'ip': '192.168.0.38', 'name': name, 'password': password};
-
-    return Future.wait([
-      ServerSideApi.create('192.168.0.38', 4).loginBrigade(data).then((value) => brigadeData = value.body),
-    ]).whenComplete(() {
-      if(name == '' || password == '') {
-        _showMessage!.show(context, 3);
-      } else {
-        if(brigadeData!.status == 'account_exists'){
-          _showMessage!.show(context, 4);
-          UserState.rememberBrigade(brigadeData!.brigade);
-          if(isChecked == true){
-            setState(() {
-              UserState.userName = brigadeData!.username;
-              UserState.rememberUser('192.168.0.38', brigadeData!.username, password);
-            });
-          }else{
-            setState(() {
-              UserState.userName = brigadeData!.username;
-            });
-          }
-          UserState.rememberUserState(true);
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskPage()));
-        }else if (brigadeData!.status == 'account_not_exists'){
-          _showMessage!.show(context, 5);
-        }
-      }
-    });
-  }
 }

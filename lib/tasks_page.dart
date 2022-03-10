@@ -31,27 +31,9 @@ class _TasksPageState extends State<TaskPage>
 
   HtmlWebSocketChannel? _htmlWebSocketChannel;
 
-  String? task;
-  String? status;
-  String? date;
-  String? time;
-  String? address;
-  String? telephone;
-  String? note1;
-  String? note2;
-  String? color;
-  String? isUrgent;
-
-  String? onWayHoursStr = '00';
-  String? onWayMinutesStr = '00';
-  String? onWaySecondsStr = '00';
-
-  String? workStartedHoursStr = '00';
-  String? workStartedMinutesStr = '00';
-  String? workStartedSecondsStr = '00';
-
   String? onWayTime = '00:00:00';
   String? workTime = '00:00:00';
+  String? allTaskTime = '00:00:00';
 
   StateSetter? statusState;
   StateSetter? brigadesTaskState;
@@ -118,34 +100,42 @@ class _TasksPageState extends State<TaskPage>
 
     _htmlWebSocketChannel = HtmlWebSocketChannel.connect('ws://192.168.0.38:8080');
     _htmlWebSocketChannel!.stream.listen((event) {
-      Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
+      Map<String, dynamic> eventMap = json.decode(event);
       String? taskId = eventMap['id'];
-      eventMap.forEach((key, value) {
-        switch(key){
-          case 'lat':
-            lat = eventMap['lat'];
-            break;
-            case 'long':lat = eventMap['lat'];
-            break;
-            case 'onWayTime':mapTaskInfoState!((){
-              onWayTime = eventMap['onWayTime'];
-            });
-            break;
-            case 'workTime':mapTaskInfoState!((){
-              workTime = eventMap['workTime'];
-            });
-            break;
-            case 'status':
-              for(var task in _taskList!) {
-              if(taskId == task.id) {
-                statusState!(() {
-                  status = eventMap['status'];
+      for(var task in _taskList!){
+        if(taskId == task.id){
+          eventMap.forEach((key, value) {
+            switch(key){
+              case 'lat':
+                lat = eventMap['lat'];
+                break;
+              case 'long':
+                long = eventMap['long'];
+                break;
+              case 'onWayTime':
+                mapTaskInfoState!((){
+                  onWayTime = eventMap['onWayTime'];
                 });
-              }
+                break;
+              case 'workTime':
+                mapTaskInfoState!((){
+                  workTime = eventMap['workTime'];
+                });
+                break;
+              case 'allTaskTime':
+                mapTaskInfoState!((){
+                  allTaskTime = eventMap['allTaskTime'];
+                });
+                break;
+              case 'status':
+                statusState!(() {
+                  task.status = eventMap['status'];
+                });
+                break;
             }
-            break;
+          });
         }
-      });
+      }
     });
   }
 
@@ -569,7 +559,6 @@ class _TasksPageState extends State<TaskPage>
     );
   }
 
-
   // Building tasks table
   Widget buildTasksTable(List<TaskServerModel>? _tasksList) {
     return SizedBox.expand(
@@ -594,7 +583,9 @@ class _TasksPageState extends State<TaskPage>
         rows: List<DataRow>.generate(_tasksList!.length, (index) {
           TaskServerModel task = _tasksList[index];
           String? brigadesValue;
-          status = task.status;
+          onWayTime = task.onWayTime;
+          workTime = task.workTime;
+          allTaskTime = task.allTaskTime;
 
           if(task.brigade != ''){
             brigadesValue = _taskList![index].brigade;
@@ -663,12 +654,14 @@ class _TasksPageState extends State<TaskPage>
                               color: Colors.deepOrangeAccent),
                         ),
                       ),
+
                       onFieldSubmitted: (text) {
                         var data = {
                           'ip': UserState.temporaryIp,
                           'id': task.id,
                           'note_1': text,
                         };
+
                         ServerSideApi.create(UserState.temporaryIp, 1)
                             .editNotes1(data);
                         var note1SocketData = {
@@ -715,20 +708,19 @@ class _TasksPageState extends State<TaskPage>
                   builder: (context, setState){
                     statusState = setState;
                     return DropdownButton<String>(
-                      value: status,
+                      value: task.status,
                       onChanged: (String? value) {
                         setState(() {
-                          status = value!;
                           var data = {
                             'ip' : UserState.temporaryIp,
                             'id' : task.id,
-                            'status' : status
+                            'status' : value
                           };
                           ServerSideApi.create(UserState.temporaryIp, 1).updateStatus(data);
                           var socketData = {
                             'id' : task.id,
                             'brigade' : brigadesValue,
-                            'status' : status
+                            'status' : value
                           };
 
                           _htmlWebSocketChannel!.sink.add(json.encode(socketData));
@@ -837,8 +829,15 @@ class _TasksPageState extends State<TaskPage>
                                               const SizedBox(height: 10),
                                               Row(
                                                 children: [
+                                                  const Text('Общее время задания: ', style: TextStyle(fontSize: 15)),
+                                                  Text('$allTaskTime', style: const TextStyle(fontSize: 15))
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
                                                   const Text('Статус: ', style: TextStyle(fontSize: 15)),
-                                                  Text('$status', style: const TextStyle(fontSize: 15))
+                                                  Text('${task.status}', style: const TextStyle(fontSize: 15))
                                                 ],
                                               )
                                             ],
