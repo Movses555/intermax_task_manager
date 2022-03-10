@@ -1,5 +1,3 @@
-import 'package:awesome_notifications/awesome_notifications.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intermax_task_manager/Brigades%20Settings/brigade_details.dart';
 import 'package:intermax_task_manager/Flutter%20Toast/flutter_toast.dart';
@@ -8,25 +6,11 @@ import 'package:intermax_task_manager/User%20Details/user_details.dart';
 import 'package:intermax_task_manager/User%20State/user_state.dart';
 import 'package:intermax_task_manager/tasks_page.dart';
 import 'package:responsive_framework/responsive_framework.dart';
-import 'package:universal_platform/universal_platform.dart';
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await UserState.init();
-  if(UniversalPlatform.isAndroid){
-    await Firebase.initializeApp();
-    AwesomeNotifications().initialize(
-      null,
-      [
-        NotificationChannel(
-            channelKey: 'high_importance_channel',
-            channelName: 'Basic Notifications',
-            channelDescription: 'Description',
-            importance: NotificationImportance.High)
-      ],
-    );
-  }
   runApp(const MaterialApp(
     home: TaskManagerMainPage(),
   )
@@ -81,13 +65,13 @@ class _MainPageState extends State<TaskManagerMainPage> {
           appBar: AppBar(
           title:  const Text('Планировщик задач Intermax', style: TextStyle(fontSize: 25)),
           centerTitle: false,
-          backgroundColor: UniversalPlatform.isAndroid ? Colors.deepOrangeAccent : Colors.grey,
+          backgroundColor: Colors.grey,
           automaticallyImplyLeading: false,
           actions: [
-            !UniversalPlatform.isAndroid ? IconButton(
+            IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () => null,
-            ) : Container()
+            )
           ],
         ),
         body: loginInterface()
@@ -130,27 +114,25 @@ class _MainPageState extends State<TaskManagerMainPage> {
         return Align(
           alignment: Alignment.center,
           child: Padding(
-            padding: UniversalPlatform.isAndroid
-                ? const EdgeInsets.only(left: 30, right: 30)
-                : EdgeInsets.only(top: height/4, bottom: height/4, left: width/3, right: width/3),
+            padding: EdgeInsets.only(top: height/4, bottom: height/4, left: width/3, right: width/3),
             child: SizedBox(
               width: 300,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    !UniversalPlatform.isAndroid ? TextFormField(
+                    TextFormField(
                       cursorColor: Colors.deepOrangeAccent,
                       focusNode: _ipAddressFieldFocusNode,
                       keyboardType: TextInputType.text,
                       controller: ipController,
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(UniversalPlatform.isAndroid ? 20.0 : 2.0)),
+                            borderRadius: BorderRadius.circular(2.0)),
                         label: const Text('IP Адрес'),
                         labelStyle: TextStyle(color: _ipAddressFieldFocusNode.hasFocus ? Colors.deepOrangeAccent : Colors.grey),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(UniversalPlatform.isAndroid ? 20.0 : 2.0),
+                          borderRadius: BorderRadius.circular(2.0),
                           borderSide: const BorderSide(
                             color: Colors.deepOrangeAccent,
                             width: 2.0,
@@ -160,7 +142,7 @@ class _MainPageState extends State<TaskManagerMainPage> {
                       onTap: () {
                         FocusScope.of(context).requestFocus(_ipAddressFieldFocusNode);
                       },
-                    ) : Container(),
+                    ),
                     const SizedBox(height: 20),
                     TextFormField(
                       cursorColor: Colors.deepOrangeAccent,
@@ -168,14 +150,12 @@ class _MainPageState extends State<TaskManagerMainPage> {
                       keyboardType: TextInputType.text,
                       controller: nameController,
                       decoration: InputDecoration(
-                        contentPadding: UniversalPlatform.isAndroid ?
-                        const EdgeInsets.symmetric(vertical: 25.0, horizontal: 25.0) : null,
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(UniversalPlatform.isAndroid ? 20.0 : 2.0)),
+                            borderRadius: BorderRadius.circular(2.0)),
                         label: const Text('Имя пользователя'),
                         labelStyle: TextStyle(color: _nameFieldFocus.hasFocus ? Colors.deepOrangeAccent : Colors.grey),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(UniversalPlatform.isAndroid ? 20.0 : 2.0),
+                          borderRadius: BorderRadius.circular(2.0),
                           borderSide: const BorderSide(
                             color: Colors.deepOrangeAccent,
                             width: 2.0,
@@ -194,14 +174,12 @@ class _MainPageState extends State<TaskManagerMainPage> {
                       obscureText: _isHidden,
                       controller: passwordController,
                       decoration: InputDecoration(
-                          contentPadding: UniversalPlatform.isAndroid ?
-                          const EdgeInsets.symmetric(vertical: 25.0, horizontal: 25.0) : null,
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(UniversalPlatform.isAndroid ? 20.0 : 2.0)),
+                              borderRadius: BorderRadius.circular(2.0)),
                           label: const Text('Пароль'),
                           labelStyle: TextStyle(color: _passwordFieldFocus.hasFocus ? Colors.deepOrangeAccent : Colors.grey),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(UniversalPlatform.isAndroid ? 20.0 : 2.0),
+                            borderRadius: BorderRadius.circular(2.0),
                             borderSide: const BorderSide(
                               color: Colors.deepOrangeAccent,
                               width: 2.0,
@@ -238,26 +216,24 @@ class _MainPageState extends State<TaskManagerMainPage> {
                             },
                           ),
                           const SizedBox(width: 2),
-                          Text(
+                          const Text(
                               'Запомнить меня',
-                            style: TextStyle(fontSize: UniversalPlatform.isAndroid ? 20 : 14),
+                            style: TextStyle(fontSize: 14),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 20),
                     SizedBox(
-                      height: UniversalPlatform.isAndroid ? 70 : null,
-                      width: UniversalPlatform.isAndroid ? 300 : null,
                       child: FloatingActionButton.extended(
                           backgroundColor: Colors.deepOrangeAccent,
-                          label: Text(
+                          label: const Text(
                             'Войти',
-                          style: TextStyle(fontSize: UniversalPlatform.isAndroid ? 17 : 14)),
-                          shape: !UniversalPlatform.isAndroid ? const BeveledRectangleBorder(
+                          style: TextStyle(fontSize: 14)),
+                          shape: const BeveledRectangleBorder(
                               borderRadius: BorderRadius.zero
-                          ) : null,
-                          onPressed: () => UniversalPlatform.isAndroid ? _loginBrigade(controllers, _isChecked) : _loginUser(controllers, _isChecked)
+                          ),
+                          onPressed: () => _loginUser(controllers, _isChecked)
                       ),
                     )
                   ],

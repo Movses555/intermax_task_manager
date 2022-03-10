@@ -39,6 +39,12 @@ abstract class ServerSideApi extends ChopperService{
   @Post(path: '/update_status.php')
   Future<Response> updateStatus(@Body() var data);
 
+  @Post(path: '/update_time_1.php')
+  Future<Response> updateOnWayTime(@Body() var data);
+
+  @Post(path: '/update_time_2.php')
+  Future<Response> updateWorkTime(@Body() var data);
+
   @Post(path: '/change_brigade.php')
   Future<Response> changeBrigade(@Body() var data);
 

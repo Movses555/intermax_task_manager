@@ -1,15 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:chopper/chopper.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:intermax_task_manager/Location%20Service/location_service.dart';
 import 'package:intermax_task_manager/Maps%20API/maps.dart';
 import 'package:intermax_task_manager/Status%20Data/status_model.dart';
 import 'package:intermax_task_manager/Stopwatch/stopwatch.dart';
-import 'package:universal_platform/universal_platform.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intermax_task_manager/Brigades%20Settings/brigades_settings.dart';
 import 'package:intermax_task_manager/FCM%20Controller/fcm_controller.dart';
@@ -23,27 +17,7 @@ import 'package:intermax_task_manager/main.dart';
 import 'package:intl/intl.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:roundcheckbox/roundcheckbox.dart';
-import 'package:translit/translit.dart';
 import 'package:web_socket_channel/html.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if(UniversalPlatform.isAndroid){
-    await Firebase.initializeApp();
-    AwesomeNotifications().createNotification(
-        content: NotificationContent(
-            id: 1,
-            channelKey: 'high_importance_channel',
-            wakeUpScreen: true,
-            displayOnBackground: true,
-            backgroundColor: Colors.purpleAccent,
-            displayOnForeground: true,
-            title: '${message.notification!.title}',
-            body: '${message.notification!.body}'
-        )
-    );
-  }
-}
 
 class TaskPage extends StatefulWidget {
   const TaskPage({Key? key}) : super(key: key);
@@ -56,8 +30,6 @@ class _TasksPageState extends State<TaskPage>
     with SingleTickerProviderStateMixin {
 
   HtmlWebSocketChannel? _htmlWebSocketChannel;
-  WebSocketChannel? _webSocketChannel;
-  LocationService? _locationService;
 
   String? task;
   String? status;
@@ -87,8 +59,6 @@ class _TasksPageState extends State<TaskPage>
   StateSetter? mapTaskInfoState;
   StateSetter? mapState;
 
-  int? _bottomNavBarItemIndex = 0;
-
   double? lat;
   double? long;
 
@@ -108,7 +78,6 @@ class _TasksPageState extends State<TaskPage>
   bool? _isBlue = false;
 
   List<TaskServerModel>?  _taskList;
-  List<TaskServerModel>? _brigadeTaskList;
   List<Status>? _statusList = [];
 
   Stream<int>? onWayTimerStream;
@@ -147,176 +116,42 @@ class _TasksPageState extends State<TaskPage>
     _statusList!.add(Status(status: 'На месте', color: Colors.yellow[700]));
     _statusList!.add(Status(status: 'Завершено', color: Colors.green));
 
-    if(UniversalPlatform.isAndroid) {
-      FirebaseMessaging.instance.getInitialMessage();
-      FirebaseMessaging.instance.subscribeToTopic(Translit().toTranslit(source: UserState.getBrigade()!));
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-      FirebaseMessaging.onMessage.listen((message) {
-        if (message.notification != null) {
-          AwesomeNotifications().createNotification(
-              content: NotificationContent(
-                id: 2,
-                wakeUpScreen: true,
-                displayOnBackground: true,
-                backgroundColor: Colors.purpleAccent,
-                color: Colors.purpleAccent,
-                displayOnForeground: true,
-                channelKey: 'high_importance_channel',
-                title: '${message.notification!.title}',
-                body: '${message.notification!.body}',
-              )
-          );
-        }
-      });
-    }
-
-    if(UniversalPlatform.isWeb){
-      _htmlWebSocketChannel = HtmlWebSocketChannel.connect('ws://192.168.0.38:8080');
-      _htmlWebSocketChannel!.stream.listen((event) {
-        Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
-        String? taskId = eventMap['id'];
-        eventMap.forEach((key, value) {
-          switch(key){
-            case 'lat':
-              lat = eventMap['lat'];
-              break;
-            case 'long':
-              lat = eventMap['lat'];
-              break;
-            case 'onWayTime':
-              mapTaskInfoState!((){
-                onWayTime = eventMap['onWayTime'];
-              });
-              break;
-            case 'workTime':
-              mapTaskInfoState!((){
-                workTime = eventMap['workTime'];
-              });
-              break;
+    _htmlWebSocketChannel = HtmlWebSocketChannel.connect('ws://192.168.0.38:8080');
+    _htmlWebSocketChannel!.stream.listen((event) {
+      Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
+      String? taskId = eventMap['id'];
+      eventMap.forEach((key, value) {
+        switch(key){
+          case 'lat':
+            lat = eventMap['lat'];
+            break;
+            case 'long':lat = eventMap['lat'];
+            break;
+            case 'onWayTime':mapTaskInfoState!((){
+              onWayTime = eventMap['onWayTime'];
+            });
+            break;
+            case 'workTime':mapTaskInfoState!((){
+              workTime = eventMap['workTime'];
+            });
+            break;
             case 'status':
               for(var task in _taskList!) {
-                if(taskId == task.id) {
-                  statusState!(() {
-                    status = eventMap['status'];
-                  });
-                }
+              if(taskId == task.id) {
+                statusState!(() {
+                  status = eventMap['status'];
+                });
               }
-              break;
-          }
-        });
-      });
-    }else if(UniversalPlatform.isAndroid){
-      _webSocketChannel = WebSocketChannel.connect(Uri.parse('ws://192.168.0.38:8080'));
-      _webSocketChannel!.stream.listen((event) {
-        Map<String, dynamic> eventMap = json.decode(utf8.decode(event));
-        String? brigade = eventMap['brigade'];
-        String? taskId = eventMap['id'];
-        for(var taskItem in _brigadeTaskList!) {
-          if(brigade == UserState.getBrigade() && taskItem.id == taskId){
-            eventMap.forEach((key, value) {
-              switch (key) {
-                case 'task':
-                  if (eventMap['task'] != null) {
-                    brigadesTaskState!(() {
-                      task = eventMap['task'];
-                    });
-                  }
-                  break;
-                case 'address':
-                  if (eventMap['address'] != null) {
-                    brigadesTaskState!(() {
-                      address = eventMap['address'];
-                    });
-                  }
-                  break;
-                case 'color':
-                  if (eventMap['color'] != null) {
-                    brigadesTaskState!(() {
-                      color = eventMap['color'];
-                    });
-                  }
-                  break;
-                case 'date':
-                  if (eventMap['date'] != null) {
-                    brigadesTaskState!(() {
-                      date = eventMap['date'];
-                    });
-                  }
-                  break;
-                case 'time':
-                  if (eventMap['time'] != null) {
-                    brigadesTaskState!(() {
-                      time = eventMap['time'];
-                    });
-                  }
-                  break;
-                case 'note1':
-                  if (eventMap['note1'] != null) {
-                    brigadesTaskState!(() {
-                      note1 = eventMap['note1'];
-                    });
-                  }
-                  break;
-                case 'note2':
-                  if (eventMap['note2'] != null) {
-                    brigadesTaskState!(() {
-                      note2 = eventMap['note2'];
-                    });
-                  }
-                  break;
-                case 'telephone':
-                  if(eventMap['telephone'] != null){
-                    telephone = eventMap['telephone'];
-                  }
-                  break;
-                case 'urgent':
-                  if(eventMap['urgent'] != null){
-                    isUrgent = eventMap['urgent'].toString();
-                  }
-              }
-            });
-
-            switch (eventMap['status']) {
-              case 'Не выполнено':
-                setState(() {
-                  _bottomNavBarItemIndex = 0;
-                });
-                break;
-              case 'В пути':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'На месте':
-                setState(() {
-                  _bottomNavBarItemIndex = 1;
-                });
-                break;
-              case 'Завершено':
-                setState(() {
-                  _bottomNavBarItemIndex = 2;
-                });
-                break;
             }
-          }
+            break;
         }
       });
-      _locationService = LocationService.init(_webSocketChannel!);
-      _locationService!.checkLocationPermission();
-      _locationService!.getLocationChanges();
-    }
+    });
   }
 
   @override
   void dispose() {
     super.dispose();
-
-   if(UniversalPlatform.isWeb){
-     _htmlWebSocketChannel!.sink.close();
-   }else if(UniversalPlatform.isAndroid){
-     _webSocketChannel!.sink.close();
-   }
 
     _ipAddressFocusNode!.dispose();
     _nameFocusNode!.dispose();
@@ -335,25 +170,25 @@ class _TasksPageState extends State<TaskPage>
             backgroundColor: Colors.deepOrangeAccent,
             automaticallyImplyLeading: false,
             actions: [
-              !UniversalPlatform.isAndroid ? IconButton(
+              IconButton(
                 icon: const Icon(Icons.calendar_today_outlined),
                 onPressed: () {
 
                 },
-              ) : Container(),
-              !UniversalPlatform.isAndroid ? IconButton(
+              ),
+              IconButton(
                 icon: const Icon(Icons.add),
                 onPressed: () => _showAddTaskDialog(),
-              ) : Container(),
-              !UniversalPlatform.isAndroid ? IconButton(
+              ),
+              IconButton(
                 icon: const Icon(Icons.person_add),
                 onPressed: () => _showAddUserDialog(),
-              ) : Container(),
-              !UniversalPlatform.isAndroid ? IconButton(
+              ),
+              IconButton(
                 icon: const Icon(Icons.logout),
                 onPressed: () => _showSignOutDialog(),
-              ) : Container(),
-              !UniversalPlatform.isAndroid ? PopupMenuButton(
+              ),
+              PopupMenuButton(
                 icon: const Icon(Icons.settings),
                 tooltip: 'Настройки',
                 itemBuilder: (context) =>
@@ -695,53 +530,10 @@ class _TasksPageState extends State<TaskPage>
                       break;
                   }
                 },
-              ) : Container()
+              )
             ],
           ),
-          bottomNavigationBar: UniversalPlatform.isAndroid ? BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              iconSize: 30,
-              elevation: 20.0,
-              currentIndex: _bottomNavBarItemIndex!,
-              selectedItemColor: Colors.deepOrangeAccent,
-              unselectedItemColor: Colors.grey,
-              items: const [
-                BottomNavigationBarItem(
-                    label: 'Новые задачи',
-                    icon: Icon(Icons.upcoming_rounded)
-                ),
-                BottomNavigationBarItem(
-                    label: 'Текущие задачи',
-                    icon: Icon(Icons.task_rounded)
-                ),
-                BottomNavigationBarItem(
-                    label: 'Завершённые задачи',
-                    icon: Icon(Icons.done)
-                ),
-                BottomNavigationBarItem(
-                    label: 'Выйти',
-                    icon: Icon(Icons.logout)
-                )
-              ],
-              onTap: (index) {
-                if (index == 0) {
-                  setState(() {
-                    _bottomNavBarItemIndex = index;
-                  });
-                } else if (index == 1) {
-                  setState(() {
-                    _bottomNavBarItemIndex = index;
-                  });
-                } else if (index == 2) {
-                  setState(() {
-                    _bottomNavBarItemIndex = index;
-                  });
-                } else if (index == 3) {
-                  _showSignOutDialog();
-                }
-              },
-            ) : null,
-          body: UniversalPlatform.isAndroid ? getBrigadeTasks(_bottomNavBarItemIndex!) : getTasks()
+          body: getTasks()
       ),
       breakpoints: const [
         ResponsiveBreakpoint.resize(500, name: MOBILE),
@@ -777,48 +569,6 @@ class _TasksPageState extends State<TaskPage>
     );
   }
 
-  // Getting tasks from server (Android version)
-  FutureBuilder<Response<List<TaskServerModel>>> getBrigadeTasks(int index) {
-    String? status;
-    switch (index) {
-      case 0:
-        status = 'Не выполнено';
-        break;
-      case 1:
-        status = 'В пути';
-        break;
-      case 2:
-        status = 'Завершено';
-        break;
-    }
-    var data = {
-      'ip': '192.168.0.38',
-      'brigade': UserState.getBrigade(),
-      'status': status
-    };
-
-    return FutureBuilder<Response<List<TaskServerModel>>>(
-      future: ServerSideApi.create('192.168.0.38', 3).getBrigadeTask(data),
-      builder: (context, snapshot) {
-        while (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: Colors.deepOrangeAccent,
-            ),
-          );
-        }
-
-        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-          _brigadeTaskList = snapshot.data!.body;
-          return buildTaskForBrigade(_brigadeTaskList);
-        } else {
-          return const Center(
-            child: Text('Список задач пуст', style: TextStyle(fontSize: 20)),
-          );
-        }
-      },
-    );
-  }
 
   // Building tasks table
   Widget buildTasksTable(List<TaskServerModel>? _tasksList) {
@@ -1121,311 +871,6 @@ class _TasksPageState extends State<TaskPage>
     );
   }
 
-  // Building tasks table for specific brigade(Android version)
-  Widget buildTaskForBrigade(List<TaskServerModel>? _brigadeTaskList) {
-    return ListView.builder(
-      itemCount: _brigadeTaskList!.length,
-      itemBuilder: (context, index) {
-        TaskServerModel brigadeTask = _brigadeTaskList[index];
-        String? formattedDate = dateFormatter.format(DateTime.now());
-
-        task = brigadeTask.task;
-        time = brigadeTask.time;
-        telephone = brigadeTask.telephone;
-        address = brigadeTask.address;
-        note1 = brigadeTask.note1;
-        note2 = brigadeTask.note2;
-        color = brigadeTask.color;
-        isUrgent = brigadeTask.isUrgent;
-
-        if (formattedDate == brigadeTask.date) {
-          date = "Сегодня";
-        } else {
-          date = brigadeTask.date;
-        }
-
-        return GestureDetector(
-          child: StatefulBuilder(
-            builder: (context, setState){
-              brigadesTaskState = setState;
-              return Card(
-                  elevation: 5,
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        ListTile(
-                          title: Text(task!, style: TextStyle(
-                              color: Color(int.parse('0x' + color!)),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20)),
-                          trailing: _bottomNavBarItemIndex == 0
-                              ? Text(brigadeTask.status, style: const TextStyle(color: Colors.red, fontSize: 18)) :_bottomNavBarItemIndex == 1
-                              ? Text(brigadeTask.status,
-                              style: TextStyle(color: brigadeTask.status == 'В пути' ? Colors.orangeAccent[700] : Colors.yellow[700], fontSize: 18)) : _bottomNavBarItemIndex == 2
-                              ? Text(brigadeTask.status, style: const TextStyle(color: Colors.green, fontSize: 18)) : null,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 15),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(date! + " в " + time!,
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(address!,
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(height: 5),
-                              note1 != '' || note2 != '' ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text('Примечание', style: TextStyle(fontSize: 20, color: Colors.grey[700])),
-                                ],
-                              ) : Container(),
-                              note1 != '' ? Text(note1!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
-                              note2 != '' ? Text(note2!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)) : Container(),
-                              const SizedBox(height: 5)
-                            ],
-                          ),
-                        )
-                      ]
-                  )
-              );
-            },
-          ),
-          onTap: () {
-            showDialog(
-                context: context,
-                builder: (context) {
-                  return StatefulBuilder(
-                    builder: (context, dialogState) {
-                      taskInfoState = dialogState;
-                      return SizedBox(
-                        child: SimpleDialog(
-                          title: const Text(
-                            'Детали о задаче',
-                            style: TextStyle(color: Colors.black, fontSize: 30),
-                          ),
-                          contentPadding: const EdgeInsets.only(
-                              left: 5, right: 5, bottom: 20),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20.0)),
-                          backgroundColor: Colors.white,
-                          children: [
-                            const SizedBox(height: 5),
-                            Center(
-                              child: Column(
-                                children: [
-                                  ListTile(
-                                    title: Text(
-                                      brigadeTask.task,
-                                      style: TextStyle(color: Color(
-                                          int.parse('0x' + brigadeTask.color))),
-                                    ),
-                                    leading: const Icon(Icons.task),
-                                  ),
-                                  const Divider(height: 1),
-                                  ListTile(
-                                    title: Text(address!),
-                                    leading: const Icon(
-                                        Icons.add_location_rounded),
-                                  ),
-                                  const Divider(height: 1),
-                                  ListTile(
-                                    title: Text(telephone!),
-                                    leading: const Icon(Icons.phone),
-                                    onTap: () {
-                                      launch('tel://${telephone!}');
-                                    },
-                                  ),
-                                  const Divider(height: 1),
-                                  ListTile(
-                                      title: Text(isUrgent == '1'
-                                          ? "Срочно"
-                                          : "Не срочно"),
-                                      leading: const Icon(
-                                          Icons.access_time_outlined)
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: 300,
-                                    child: FloatingActionButton.extended(
-                                        label: Center(
-                                          child: Column(
-                                            children: [
-                                              const Text('В пути'),
-                                              const SizedBox(height: 0.5),
-                                              Text("$onWayHoursStr:$onWayMinutesStr:$onWaySecondsStr")
-                                            ],
-                                          ),
-                                        ),
-                                        backgroundColor: brigadeTask.status == 'Не выполнено'
-                                            ? Colors.orangeAccent[700]
-                                            : Colors.grey,
-                                        onPressed: brigadeTask.status == 'Не выполнено'
-                                            ? () async {
-                                          var data = {
-                                            'ip': '192.168.0.38',
-                                            'id': brigadeTask.id,
-                                            'status': 'В пути'
-                                          };
-                                          Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
-
-                                          var socketData = {
-                                            'id' : brigadeTask.id,
-                                            'status' : 'В пути'
-                                          };
-
-
-                                          _webSocketChannel!.sink.add(json.encode(socketData));
-
-                                          if (response.body == 'status_updated') {
-                                            Navigator.pop(context);
-                                            setState(() {});
-                                          }
-
-                                          onWayTimerStream = stopWatch!.onWayStopWatchStream();
-                                          onWayTimerSubscription = onWayTimerStream!.listen((tick) {
-                                            taskInfoState!(() {
-                                              onWayHoursStr = ((tick / (60 * 60)) % 60).floor().toString().padLeft(2, '0');
-                                              onWayMinutesStr = ((tick / 60) % 60).floor().toString().padLeft(2, '0');
-                                              onWaySecondsStr = (tick % 60).floor().toString().padLeft(2, '0');
-
-                                              var timeData = {
-                                                'onWayTime' : '$onWayHoursStr:$onWayMinutesStr:$onWaySecondsStr',
-                                              };
-
-                                              _webSocketChannel!.sink.add(json.encode(timeData));
-                                            });
-                                          });
-                                        } : null
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: 300,
-                                    child: FloatingActionButton.extended(
-                                      label: Center(
-                                        child: Column(
-                                          children: [
-                                            const Text('На месте'),
-                                            const SizedBox(height: 0.5),
-                                            Text("$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr")
-                                          ],
-                                        ),
-                                      ),
-                                      backgroundColor: brigadeTask.status == 'В пути'
-                                          ? Colors.yellow[700]
-                                          : Colors.grey,
-                                      onPressed: brigadeTask.status == 'В пути' ? () async {
-
-                                        var data = {
-                                          'ip': '192.168.0.38',
-                                          'id': brigadeTask.id,
-                                          'on_way_time' : '$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr',
-                                          'status': 'На месте'
-                                        };
-                                        Response response = await ServerSideApi.create('192.168.0.38', 1).updateStatus(data);
-
-                                        var socketData = {
-                                          'id' : brigadeTask.id,
-                                          'status' : 'На месте'
-                                        };
-
-                                        _webSocketChannel!.sink.add(json.encode(socketData));
-
-                                        if (response.body == 'status_updated') {
-                                          Navigator.pop(context);
-                                          setState(() {});
-                                        }
-
-                                        onWayTimerSubscription!.cancel();
-                                        onWayTimerStream = null;
-
-                                        workStartedTimerStream = stopWatch!.workStartedStopWatchStream();
-                                        workStartedTimerSubscription = workStartedTimerStream!.listen((tick) {
-                                          taskInfoState!(() {
-                                            workStartedHoursStr = ((tick / (60 * 60)) % 60).floor().toString().padLeft(2, '0');
-                                            workStartedMinutesStr = ((tick / 60) % 60).floor().toString().padLeft(2, '0');
-                                            workStartedSecondsStr = (tick % 60).floor().toString().padLeft(2, '0');
-
-                                            var timeData = {
-                                              'workTime' : '$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr',
-                                            };
-
-                                            _webSocketChannel!.sink.add(json.encode(timeData));
-                                          });
-                                        });
-                                      } : null,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: 300,
-                                    child: FloatingActionButton.extended(
-                                      label: const Text('Завершено'),
-                                      backgroundColor: brigadeTask.status == 'На месте'
-                                          ? Colors.green[700]
-                                          : brigadeTask.status == 'Завершено' ? Colors.grey : Colors.grey,
-                                      onPressed: brigadeTask.status == 'На месте'
-                                          ? () async {
-
-                                        var data = {
-                                          'ip': '192.168.0.38',
-                                          'id': brigadeTask.id,
-                                          'work_time' : '$workStartedHoursStr:$workStartedMinutesStr:$workStartedSecondsStr',
-                                          'status': 'Завершено'
-                                        };
-
-                                        Response response = await ServerSideApi
-                                            .create('192.168.0.38', 1)
-                                            .updateStatus(data);
-
-                                        var socketData = {
-                                          'id' : brigadeTask.id,
-                                          'status' : 'Завершено'
-                                        };
-
-                                        _webSocketChannel!.sink.add(json.encode(socketData));
-
-                                        if (response.body ==
-                                            'status_updated') {
-                                          Navigator.pop(context);
-                                          setState(() {});
-                                        }
-
-                                        workStartedTimerSubscription!.cancel();
-                                        workStartedTimerStream = null;
-                                      } : null
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: 300,
-                                    child: FloatingActionButton.extended(
-                                      label: const Text('Закрыть'),
-                                      backgroundColor: Colors.blue,
-                                      onPressed: () => Navigator.pop(context),
-                                    ),
-                                  )
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                }
-            );
-          },
-        );
-      },
-    );
-  }
-
   // Showing dialog to add a task
   void _showAddTaskDialog() {
     TextEditingController addressController = TextEditingController();
@@ -1548,15 +993,13 @@ class _TasksPageState extends State<TaskPage>
                     controller: addressController,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                          borderRadius: BorderRadius.circular(3.0)),
                       label: const Text('Адрес'),
                       labelStyle: TextStyle(
                           color: _addressFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                        borderRadius: BorderRadius.circular(3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -1575,15 +1018,13 @@ class _TasksPageState extends State<TaskPage>
                     controller: telephoneController,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                          borderRadius: BorderRadius.circular(3.0)),
                       label: const Text('Телефон'),
                       labelStyle: TextStyle(
                           color: _telephoneFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                        borderRadius: BorderRadius.circular(3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -1825,16 +1266,14 @@ class _TasksPageState extends State<TaskPage>
                               controller: ipController,
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                                    borderRadius: BorderRadius.circular(3.0)),
                                 label: const Text('IP Адрес'),
                                 labelStyle: TextStyle(
                                     color: _ipAddressFocusNode!.hasFocus
                                         ? Colors.deepOrangeAccent
                                         : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                                  borderRadius: BorderRadius.circular(3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1854,15 +1293,13 @@ class _TasksPageState extends State<TaskPage>
                               controller: nameController,
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                                    borderRadius: BorderRadius.circular(3.0)),
                                 label: const Text('Имя пользователя'),
                                 labelStyle: TextStyle(
                                     color: _nameFocusNode!.hasFocus ? Colors
                                         .deepOrangeAccent : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                                  borderRadius: BorderRadius.circular(3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1883,16 +1320,14 @@ class _TasksPageState extends State<TaskPage>
                               controller: passwordController,
                               decoration: InputDecoration(
                                   border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                                      borderRadius: BorderRadius.circular(3.0)),
                                   label: const Text('Пароль'),
                                   labelStyle: TextStyle(
                                       color: _passwordFocusNode!.hasFocus
                                           ? Colors.deepOrangeAccent
                                           : Colors.grey),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                                    borderRadius: BorderRadius.circular(3.0),
                                     borderSide: const BorderSide(
                                       color: Colors.deepOrangeAccent,
                                       width: 2.0,
@@ -1919,11 +1354,9 @@ class _TasksPageState extends State<TaskPage>
                             FloatingActionButton.extended(
                                 backgroundColor: Colors.deepOrangeAccent,
                                 label: const Text('Зарегистрировать'),
-                                shape: !UniversalPlatform.isAndroid
-                                    ? const BeveledRectangleBorder(
+                                shape: const BeveledRectangleBorder(
                                     borderRadius: BorderRadius.zero
-                                )
-                                    : null,
+                                ),
                                 onPressed: () => _registerUser(controllers)
                             ),
                           ],
@@ -1938,16 +1371,14 @@ class _TasksPageState extends State<TaskPage>
                               controller: ipController,
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                                    borderRadius: BorderRadius.circular(3.0)),
                                 label: const Text('IP Адрес'),
                                 labelStyle: TextStyle(
                                     color: _ipAddressFocusNode!.hasFocus
                                         ? Colors.deepOrangeAccent
                                         : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                                  borderRadius: BorderRadius.circular(3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1967,15 +1398,13 @@ class _TasksPageState extends State<TaskPage>
                               controller: brigadeNameController,
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                                    borderRadius: BorderRadius.circular(3.0)),
                                 label: const Text('Имя пользователя'),
                                 labelStyle: TextStyle(
                                     color: _nameFocusNode!.hasFocus ? Colors
                                         .deepOrangeAccent : Colors.grey),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                                  borderRadius: BorderRadius.circular(3.0),
                                   borderSide: const BorderSide(
                                     color: Colors.deepOrangeAccent,
                                     width: 2.0,
@@ -1996,16 +1425,14 @@ class _TasksPageState extends State<TaskPage>
                               controller: brigadePasswordController,
                               decoration: InputDecoration(
                                   border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                                      borderRadius: BorderRadius.circular(3.0)),
                                   label: const Text('Пароль'),
                                   labelStyle: TextStyle(
                                       color: _passwordFocusNode!.hasFocus
                                           ? Colors.deepOrangeAccent
                                           : Colors.grey),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                                    borderRadius: BorderRadius.circular(3.0),
                                     borderSide: const BorderSide(
                                       color: Colors.deepOrangeAccent,
                                       width: 2.0,
@@ -2056,11 +1483,9 @@ class _TasksPageState extends State<TaskPage>
                             FloatingActionButton.extended(
                                 backgroundColor: Colors.deepOrangeAccent,
                                 label: const Text('Зарегистрировать'),
-                                shape: !UniversalPlatform.isAndroid
-                                    ? const BeveledRectangleBorder(
+                                shape:  const BeveledRectangleBorder(
                                     borderRadius: BorderRadius.zero
-                                )
-                                    : null,
+                                ),
                                 onPressed: () =>
                                     _registerBrigade(
                                         brigadeControllers, brigadesValue)
@@ -2258,15 +1683,13 @@ class _TasksPageState extends State<TaskPage>
                     controller: addressController,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                          borderRadius: BorderRadius.circular(3.0)),
                       label: const Text('Адрес'),
                       labelStyle: TextStyle(
                           color: _addressFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                        borderRadius: BorderRadius.circular(3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -2285,15 +1708,13 @@ class _TasksPageState extends State<TaskPage>
                     controller: telephoneController,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                              UniversalPlatform.isAndroid ? 20.0 : 3.0)),
+                          borderRadius: BorderRadius.circular(3.0)),
                       label: const Text('Телефон'),
                       labelStyle: TextStyle(
                           color: _telephoneFocusNode!.hasFocus ? Colors
                               .deepOrangeAccent : Colors.grey),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                            UniversalPlatform.isAndroid ? 20.0 : 3.0),
+                        borderRadius: BorderRadius.circular(3.0),
                         borderSide: const BorderSide(
                           color: Colors.deepOrangeAccent,
                           width: 2.0,
@@ -2565,10 +1986,6 @@ class _TasksPageState extends State<TaskPage>
         UserState.rememberUserState(false);
         UserState.clearBrigade();
         Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskManagerMainPage()));
-
-        if(UniversalPlatform.isAndroid){
-          FirebaseMessaging.instance.unsubscribeFromTopic(Translit().toTranslit(source: UserState.getBrigade()!));
-        }
       },
     );
 
@@ -2577,11 +1994,7 @@ class _TasksPageState extends State<TaskPage>
             'Отмена', style: TextStyle(color: Colors.deepOrangeAccent)),
         onPressed: () {
           Navigator.pop(context);
-          if(UniversalPlatform.isWeb){
-            _htmlWebSocketChannel!.sink.close();
-          }else if(UniversalPlatform.isAndroid){
-            _webSocketChannel!.sink.close();
-          }
+          _htmlWebSocketChannel!.sink.close();
         });
 
     AlertDialog dialog = AlertDialog(
