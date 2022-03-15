@@ -24,6 +24,7 @@ TaskServerModel _$TaskServerModelFromJson(Map<String, dynamic> json) =>
       onWayTime: json['on_way_time'],
       workTime: json['work_time'],
       allTaskTime: json['all_task_time'],
+      cords: json['cords'],
     );
 
 Map<String, dynamic> _$TaskServerModelToJson(TaskServerModel instance) =>
@@ -44,4 +45,5 @@ Map<String, dynamic> _$TaskServerModelToJson(TaskServerModel instance) =>
       'on_way_time': instance.onWayTime,
       'work_time': instance.workTime,
       'all_task_time': instance.allTaskTime,
+      'cords': instance.cords,
     };
