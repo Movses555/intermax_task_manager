@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:chopper/chopper.dart';
 import 'package:intermax_task_manager/Maps%20API/maps.dart';
 import 'package:intermax_task_manager/Status%20Data/status_model.dart';
-import 'package:intermax_task_manager/Stopwatch/stopwatch.dart';
 import 'package:flutter/material.dart';
 import 'package:intermax_task_manager/Brigades%20Settings/brigades_settings.dart';
 import 'package:intermax_task_manager/FCM%20Controller/fcm_controller.dart';
@@ -52,7 +51,7 @@ class _TasksPageState extends State<TaskPage>
   bool? _isRed = false;
   bool? _isBlue = false;
 
-  List<TaskServerModel>?  _taskList;
+  List<TaskServerModel>? _taskList;
   List<Status>? _statusList = [];
 
   Stream<int>? onWayTimerStream;
@@ -61,7 +60,6 @@ class _TasksPageState extends State<TaskPage>
   StreamSubscription<int>? onWayTimerSubscription;
   StreamSubscription<int>? workStartedTimerSubscription;
 
-  StopWatch? stopWatch;
   MapsAPI? maps;
 
   var dateFormatter = DateFormat('dd.MM.yyyy');
@@ -72,7 +70,6 @@ class _TasksPageState extends State<TaskPage>
     Tasks.initPreferences();
     Brigades.initPreferences();
 
-    stopWatch = StopWatch.init();
     maps = MapsAPI.init();
 
     _tasksFocusNode = FocusNode();
@@ -91,7 +88,8 @@ class _TasksPageState extends State<TaskPage>
     _statusList!.add(Status(status: 'На месте', color: Colors.yellow[700]));
     _statusList!.add(Status(status: 'Завершено', color: Colors.green));
 
-    _htmlWebSocketChannel = HtmlWebSocketChannel.connect('ws://192.168.0.38:8080');
+    _htmlWebSocketChannel =
+        HtmlWebSocketChannel.connect('ws://192.168.0.38:8080');
     _socketBroadcastStream = _htmlWebSocketChannel!.stream.asBroadcastStream();
   }
 
@@ -374,8 +372,7 @@ class _TasksPageState extends State<TaskPage>
                                           fontSize: 30)),
                                   contentPadding: const EdgeInsets.all(20),
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          3)),
+                                      borderRadius: BorderRadius.circular(3)),
                                   backgroundColor: Colors.white,
                                   children: [
                                     Column(children: [
@@ -503,7 +500,8 @@ class _TasksPageState extends State<TaskPage>
             ),
           );
         }
-        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
           _taskList = snapshot.data!.body;
           return buildTasksTable(_taskList);
         } else {
@@ -541,14 +539,16 @@ class _TasksPageState extends State<TaskPage>
           String? brigadesValue;
           String? status = task.status;
 
-          if(task.brigade != ''){
+          if (task.brigade != '') {
             brigadesValue = _taskList![index].brigade;
           }
 
-          List<TextEditingController> note1TextEditingControllers = List.generate(_tasksList.length, (index) {
+          List<TextEditingController> note1TextEditingControllers = List
+              .generate(_tasksList.length, (index) {
             return TextEditingController();
           });
-          List<TextEditingController> note2TextEditingControllers = List.generate(_tasksList.length, (index) {
+          List<TextEditingController> note2TextEditingControllers = List
+              .generate(_tasksList.length, (index) {
             return TextEditingController();
           });
 
@@ -562,7 +562,8 @@ class _TasksPageState extends State<TaskPage>
           _listenSocket(task);
           return DataRow(
             cells: [
-              DataCell(Text(task.task, style: TextStyle(color: Color(int.parse('0x' + task.color))))),
+              DataCell(Text(task.task, style: TextStyle(
+                  color: Color(int.parse('0x' + task.color))))),
               DataCell(StatefulBuilder(
                 builder: (context, setState) {
                   return DropdownButton<String>(
@@ -572,12 +573,16 @@ class _TasksPageState extends State<TaskPage>
                       setState(() {
                         brigadesValue = value;
                         var data = {
-                          'ip' : UserState.temporaryIp,
-                          'id' : task.id,
-                          'brigade' : brigadesValue
+                          'ip': UserState.temporaryIp,
+                          'id': task.id,
+                          'brigade': brigadesValue
                         };
-                        ServerSideApi.create(UserState.temporaryIp, 1).changeBrigade(data).then((value){
-                          _notifyBrigades!.notify(task.address, brigadesValue!, 'Новая задача', task.date, task.time,
+                        ServerSideApi.create(UserState.temporaryIp, 1)
+                            .changeBrigade(data)
+                            .then((value) {
+                          _notifyBrigades!.notify(
+                              task.address, brigadesValue!, 'Новая задача',
+                              task.date, task.time,
                               task.isUrgent == true ? "Срочно" : "Не срочно");
                         });
                       });
@@ -619,12 +624,13 @@ class _TasksPageState extends State<TaskPage>
                       ServerSideApi.create(UserState.temporaryIp, 1)
                           .editNotes1(data);
                       var note1SocketData = {
-                        'id' : task.id,
-                        'brigade' : brigadesValue,
-                        'note1' : text
+                        'id': task.id,
+                        'brigade': brigadesValue,
+                        'note1': text
                       };
 
-                      _htmlWebSocketChannel!.sink.add(json.encode(note1SocketData));
+                      _htmlWebSocketChannel!.sink.add(json.encode(
+                          note1SocketData));
                     },
                   )
               )),
@@ -648,42 +654,47 @@ class _TasksPageState extends State<TaskPage>
                       ServerSideApi.create(UserState.temporaryIp, 1)
                           .editNotes2(data);
                       var note2SocketData = {
-                        'id' : task.id,
-                        'brigade' : brigadesValue,
-                        'note2' : text
+                        'id': task.id,
+                        'brigade': brigadesValue,
+                        'note2': text
                       };
 
-                      _htmlWebSocketChannel!.sink.add(json.encode(note2SocketData));
+                      _htmlWebSocketChannel!.sink.add(json.encode(
+                          note2SocketData));
                     },
                   )
               )),
               DataCell(Text(task.addedBy)),
               DataCell(StatefulBuilder(
-                builder: (context, setState){
+                builder: (context, setState) {
                   return DropdownButton<String>(
                     value: status,
                     onChanged: (String? value) {
+                      task.status = value!;
                       setState(() {
                         status = value;
                         var data = {
-                          'ip' : UserState.temporaryIp,
-                          'id' : task.id,
-                          'status' : value
+                          'ip': UserState.temporaryIp,
+                          'id': task.id,
+                          'status': value
                         };
-                        ServerSideApi.create(UserState.temporaryIp, 1).updateStatus(data);
+                        ServerSideApi.create(UserState.temporaryIp, 1)
+                            .updateStatus(data);
                         var socketData = {
-                          'id' : task.id,
-                          'brigade' : brigadesValue,
-                          'status' : value
+                          'id': task.id,
+                          'brigade': brigadesValue,
+                          'status': value
                         };
 
-                        _htmlWebSocketChannel!.sink.add(json.encode(socketData));
+                        _htmlWebSocketChannel!.sink.add(
+                            json.encode(socketData));
                       });
                     },
                     items: _statusList!.map<DropdownMenuItem<String>>((status) {
                       return DropdownMenuItem(
                         value: status.status,
-                        child: Text(status.status, style: TextStyle(color: status.color)),
+                        child: Text(status.status,
+                            style: TextStyle(color: status.color)),
                       );
                     }).toList(),
                   );
@@ -703,16 +714,18 @@ class _TasksPageState extends State<TaskPage>
                     ),
                     onPressed: () async {
                       var data = {'ip': UserState.temporaryIp, 'id': task.id};
-                      Response response = await ServerSideApi.create(UserState.temporaryIp, 1).deleteTask(data);
+                      Response response = await ServerSideApi.create(
+                          UserState.temporaryIp, 1).deleteTask(data);
                       if (response.body == 'task_deleted') {
                         _showMessage!.show(context, 7);
                         Navigator.pop(context);
 
                         var socketData = {
-                          'delete_task' : true,
-                          'brigade' : task.brigade,
+                          'delete_task': true,
+                          'brigade': task.brigade,
                         };
-                        _htmlWebSocketChannel!.sink.add(json.encode(socketData));
+                        _htmlWebSocketChannel!.sink.add(
+                            json.encode(socketData));
 
                         setState(() {});
                       }
@@ -740,13 +753,20 @@ class _TasksPageState extends State<TaskPage>
               DataCell(IconButton(
                 icon: const Icon(Icons.info),
                 onPressed: () {
-                  double height = MediaQuery.of(context).size.height;
-                  double width = MediaQuery.of(context).size.width;
+                  requireLocationData(task);
+                  double height = MediaQuery
+                      .of(context)
+                      .size
+                      .height;
+                  double width = MediaQuery
+                      .of(context)
+                      .size
+                      .width;
                   showDialog(
                       context: context,
                       builder: (context) {
                         return SimpleDialog(
-                          contentPadding: const EdgeInsets.all(5),
+                          contentPadding: EdgeInsets.fromLTRB(5, 5, 5, 5),
                           children: [
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -813,7 +833,11 @@ class _TasksPageState extends State<TaskPage>
                                     );
                                   },
                                 ),
-                                mapsWidget(task, height, width)
+                                SizedBox(
+                                  child: mapsBuilder(),
+                                  height: height * 0.5,
+                                  width: width / 2,
+                                )
                               ],
                             )
                           ],
@@ -829,93 +853,42 @@ class _TasksPageState extends State<TaskPage>
     );
   }
 
-  // Showing maps
-  Widget mapsWidget(TaskServerModel task, double height, double width){
-    double? crrLat;
-    double? crrLong;
-    List<m.LatLng>? coordinates;
-
-    if(task.cords != ""){
-      coordinates = json.decode(task.cords);
-    }
-
-    if(task.status == 'Не выполнено') {
-
+  void requireLocationData(TaskServerModel task){
+    if (task.status == 'Не выполнено') {
       var socketRequestData = {
-        'brigade' : task.brigade,
-        'data' : 'requesting_current_location'
+        'brigade': task.brigade,
+        'data': 'requesting_current_location'
       };
 
       _htmlWebSocketChannel!.sink.add(json.encode(socketRequestData));
-      _socketBroadcastStream!.listen((event) {
-        Map<String, dynamic> cord = json.decode(event);
-        if(cord['data'] == 'current_location' && task.brigade == cord['brigade']){
-          if(cord['crr_lat'] != null && cord['crr_long'] != null){
-            crrLat = cord['current_lat'];
-            crrLong = cord['current_long'];
-          }
-        }
-      });
+    } else if (task.status == 'В пути') {
 
-      return StatefulBuilder(
-        builder: (context, setState) {
-          mapState = setState;
-          return SizedBox(
-            child: maps!.getMaps(crrLat, crrLong),
-            height: height,
-            width: width/2,
-          );
-        },
-      );
-    }else if(task.status == 'В пути') {
-      List<m.LatLng>? cords;
-      m.LatLng? latLng;
+    } else if (task.status == 'На месте') {
 
-      _socketBroadcastStream!.listen((event) {
-        Map<String, dynamic> cord = json.decode(event);
-        if(cord['data'] == 'location_updates' && task.brigade == cord['brigade']){
-          if(cord['lat'] != null && cord['long'] != null){
-            mapState!((){
-              latLng = m.LatLng(cord['lat'], cord['long']);
-              cords!.add(latLng!);
-            });
-          }
-        }
-      });
-      return StatefulBuilder(
-        builder: (context, setState) {
-          mapState = setState;
-          return SizedBox(
-            child: maps!.getMapsPolyLine(cords),
-            height: height,
-            width: width/2,
-          );
-        },
-      );
-    }else if(task.status == 'На месте') {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          mapState = setState;
-          return SizedBox(
-            child: maps!.getMapsPolyLine(task.cords),
-            height: height,
-            width: width/2,
-          );
-        },
-      );
-    }else{
-      return StatefulBuilder(
-        builder: (context, setState) {
-          mapState = setState;
-          return SizedBox(
-            child: maps!.getMapsPolyLine(task.cords),
-            height: height,
-            width: width/2,
-          );
-        },
-      );
+    } else {
+
     }
   }
+
+  StreamBuilder mapsBuilder(){
+    return StreamBuilder(
+      stream: _socketBroadcastStream,
+      builder: (context, snapshot) {
+        while(snapshot.connectionState == ConnectionState.waiting){
+          return const Center(child: CircularProgressIndicator(color: Colors.orangeAccent));
+        }
+
+        if(snapshot.connectionState == ConnectionState.active && snapshot.hasData){
+          Map<String, dynamic>? cord = json.decode(snapshot.data);
+
+          return maps!.getMaps(cord!['lat'], cord['long']);
+        }else{
+          return const Center(child: Text("Error"));
+        }
+      },
+    );
+  }
+
 
   // Showing dialog to add a task
   void _showAddTaskDialog() {
@@ -941,7 +914,8 @@ class _TasksPageState extends State<TaskPage>
     }
 
     dateController.value = dateController.value.copyWith(text: formattedDate);
-    timeController.value = timeController.value.copyWith(text: hour + ":" + minutes);
+    timeController.value =
+        timeController.value.copyWith(text: hour + ":" + minutes);
 
     var _isUrgent = false;
     String? taskValue;
@@ -1225,7 +1199,7 @@ class _TasksPageState extends State<TaskPage>
 
                           options.add(taskValue!);
                           options.add(color!);
-                          if(brigadesValue != null){
+                          if (brigadesValue != null) {
                             options.add(brigadesValue!);
                           }
                           _addTask(options, dateAndTime, _isUrgent);
@@ -1529,7 +1503,7 @@ class _TasksPageState extends State<TaskPage>
                             FloatingActionButton.extended(
                                 backgroundColor: Colors.deepOrangeAccent,
                                 label: const Text('Зарегистрировать'),
-                                shape:  const BeveledRectangleBorder(
+                                shape: const BeveledRectangleBorder(
                                     borderRadius: BorderRadius.zero
                                 ),
                                 onPressed: () =>
@@ -1576,7 +1550,8 @@ class _TasksPageState extends State<TaskPage>
   }
 
   // Register brigade
-  void _registerBrigade(List<TextEditingController> brigadeControllers, String? brigadeValue) async {
+  void _registerBrigade(List<TextEditingController> brigadeControllers,
+      String? brigadeValue) async {
     var ip = brigadeControllers[0].text;
     var name = brigadeControllers[1].text;
     var password = brigadeControllers[2].text;
@@ -1915,7 +1890,8 @@ class _TasksPageState extends State<TaskPage>
                           options.add(taskValue!);
                           options.add(brigadesValue!);
                           options.add(color!);
-                          _editTask(task, options, dateAndTime, _isUrgent, status);
+                          _editTask(
+                              task, options, dateAndTime, _isUrgent, status);
                         } else {
                           _showMessage!.show(context, 3);
                         }
@@ -1929,15 +1905,16 @@ class _TasksPageState extends State<TaskPage>
   }
 
   // Add task to server
-  void _addTask(List<String> options, List<TextEditingController> dateAndTime, bool isUrgent) async {
+  void _addTask(List<String> options, List<TextEditingController> dateAndTime,
+      bool isUrgent) async {
     String? task;
     String? color;
     String? brigade;
-    if(options.length == 3){
+    if (options.length == 3) {
       task = options[0].toString();
       color = options[1].toString();
       brigade = options[2].toString();
-    }else{
+    } else {
       task = options[0].toString();
       color = options[1].toString();
     }
@@ -1961,12 +1938,13 @@ class _TasksPageState extends State<TaskPage>
       'status': 'Не выполнено',
     };
 
-    Response response = await ServerSideApi.create(UserState.temporaryIp, 1).addTask(data);
+    Response response = await ServerSideApi.create(UserState.temporaryIp, 1)
+        .addTask(data);
     if (response.body == 'task_added') {
       _showMessage!.show(context, 7);
       Navigator.pop(context);
 
-      if(brigade != null) {
+      if (brigade != null) {
         _notifyBrigades!.notify(address, brigade, 'Новая задача', date, time,
             isUrgent == true ? "Срочно" : "Не срочно");
       }
@@ -1976,7 +1954,9 @@ class _TasksPageState extends State<TaskPage>
   }
 
   // Edit task to server
-  void _editTask(TaskServerModel taskModel, List<String> options, List<TextEditingController> dateAndTime, bool isUrgent, String? status) async {
+  void _editTask(TaskServerModel taskModel, List<String> options,
+      List<TextEditingController> dateAndTime, bool isUrgent,
+      String? status) async {
     String task = options[0].toString();
     String brigade = options[1].toString();
     String color = options[2].toString();
@@ -1997,10 +1977,11 @@ class _TasksPageState extends State<TaskPage>
       'time': time,
       'urgent': isUrgent == true ? 1 : 0,
       'color': color,
-      'status' : status
+      'status': status
     };
 
-    Response response = await ServerSideApi.create(UserState.temporaryIp, 1).editTask(data);
+    Response response = await ServerSideApi.create(UserState.temporaryIp, 1)
+        .editTask(data);
     if (response.body == 'task_edited') {
       _showMessage!.show(context, 7);
       Navigator.pop(context);
@@ -2008,13 +1989,13 @@ class _TasksPageState extends State<TaskPage>
     }
 
     var socketData = {
-      'id' : taskModel.id,
-      'task' : task,
+      'id': taskModel.id,
+      'task': task,
       'brigade': brigade,
-      'address' : address,
-      'date' : date,
-      'time' : time,
-      'telephone' : telephone,
+      'address': address,
+      'date': date,
+      'time': time,
+      'telephone': telephone,
       'color': color,
       'urgent': isUrgent == true ? 1 : 0,
     };
@@ -2032,7 +2013,8 @@ class _TasksPageState extends State<TaskPage>
       onPressed: () {
         UserState.rememberUserState(false);
         UserState.clearBrigade();
-        Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskManagerMainPage()));
+        Navigator.push(context, MaterialPageRoute(
+            builder: (context) => const TaskManagerMainPage()));
       },
     );
 
@@ -2080,10 +2062,10 @@ class _TasksPageState extends State<TaskPage>
               });
               break;
             case 'status':
-              setState((){});
+              setState(() {});
 
               task.status = eventMap['status'];
-              mapTaskInfoState!((){});
+              mapTaskInfoState!(() {});
               break;
           }
         });

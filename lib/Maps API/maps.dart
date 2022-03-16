@@ -21,28 +21,28 @@ class MapsAPI {
 
   w.Widget getMaps(double? _lat, double? _long) {
     const String htmlId = "map";
-    if(UniversalPlatform.isWeb){
-      ui.platformViewRegistry.registerViewFactory(htmlId, (int viewId) {
-        final mapOptions = MapOptions()
-          ..zoom = 15.0
-          ..center = LatLng(_lat, _long);
+    ui.platformViewRegistry.registerViewFactory(htmlId, (int viewId) {
+      final mapOptions = MapOptions()
+        ..zoom = 15.0
+        ..center = LatLng(_lat, _long);
 
-        final elem = DivElement()
-          ..id = htmlId;
-        final map = GMap(elem, mapOptions);
+      final elem = DivElement()
+        ..style.height = "100%"
+        ..style.width = "100%"
+        ..id = htmlId;
+      final map = GMap(elem, mapOptions);
 
-        const _icon = w.Icon(w.Icons.location_on_rounded);
+      const _icon = w.Icon(w.Icons.location_on_rounded);
 
-        Marker(MarkerOptions()
-          ..anchorPoint = Point(0.5, 0.5)
-          ..icon = _icon
-          ..position = LatLng(_lat, _long)
-          ..map = map
-          ..title = htmlId);
+      Marker(MarkerOptions()
+        ..anchorPoint = Point(0.5, 0.5)
+        ..icon = _icon
+        ..position = LatLng(_lat, _long)
+        ..map = map
+        ..title = htmlId);
 
-        return elem;
-      });
-    }
+      return elem;
+    });
     return const w.HtmlElementView(viewType: htmlId);
   }
 
