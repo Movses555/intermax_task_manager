@@ -121,6 +121,70 @@ class _$ServerSideApi extends ServerSideApi {
   }
 
   @override
+  Future<Response<dynamic>> addBrigade(dynamic data) {
+    final $url = '/add_brigade.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> addTaskToList(dynamic data) {
+    final $url = '/add_task_to_list.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> deleteBrigadeFromList(dynamic data) {
+    final $url = '/delete_brigade_from_list.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> deleteTaskFromList(dynamic data) {
+    final $url = '/delete_task_from_list.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> backupData(dynamic data) {
+    final $url = '/back_up_data.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> restoreBackup(dynamic data) {
+    final $url = '/restore_backup.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> changeUserPassword(dynamic data) {
+    final $url = '/change_user_password.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> changeBrigadePassword(dynamic data) {
+    final $url = '/change_brigade_password.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
   Future<Response<List<TaskServerModel>>> getTasks(dynamic data) {
     final $url = '/get_tasks.php';
     final $body = data;
@@ -134,5 +198,40 @@ class _$ServerSideApi extends ServerSideApi {
     final $body = data;
     final $request = Request('POST', $url, client.baseUrl, body: $body);
     return client.send<List<TaskServerModel>, TaskServerModel>($request);
+  }
+
+  @override
+  Future<Response<List<BackupFile>>> getBackupFiles() {
+    final $url = '/get_backup_files.php';
+    final $request = Request('GET', $url, client.baseUrl);
+    return client.send<List<BackupFile>, BackupFile>($request);
+  }
+
+  @override
+  Future<Response<List<TaskModel>>> getTasksFromServer() {
+    final $url = '/get_tasks_from_server.php';
+    final $request = Request('GET', $url, client.baseUrl);
+    return client.send<List<TaskModel>, TaskModel>($request);
+  }
+
+  @override
+  Future<Response<List<BrigadeModel>>> getBrigadesFromServer() {
+    final $url = '/get_brigades_from_server.php';
+    final $request = Request('GET', $url, client.baseUrl);
+    return client.send<List<BrigadeModel>, BrigadeModel>($request);
+  }
+
+  @override
+  Future<Response<List<User>>> getAdmins() {
+    final $url = '/get_admins.php';
+    final $request = Request('GET', $url, client.baseUrl);
+    return client.send<List<User>, User>($request);
+  }
+
+  @override
+  Future<Response<List<User>>> getBrigades() {
+    final $url = '/get_brigades.php';
+    final $request = Request('GET', $url, client.baseUrl);
+    return client.send<List<User>, User>($request);
   }
 }

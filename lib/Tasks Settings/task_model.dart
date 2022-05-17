@@ -1,29 +1,31 @@
 import 'dart:convert';
+import 'package:json_annotation/json_annotation.dart';
 
+part 'task_model.g.dart';
+
+@JsonSerializable()
 class TaskModel{
 
+  @JsonKey(name: 'name')
   var name;
 
+  @JsonKey(name: 'color')
   var color;
 
   TaskModel({required this.name, required this.color});
 
-  factory TaskModel.fromJson(Map<String, dynamic> jsonData) {
-    return TaskModel(
-      name: jsonData['name'],
-      color: jsonData['color']
-    );
-  }
+  factory TaskModel.fromJson(Map<String, dynamic> json) => _$TaskModelFromJson(json);
 
-  static Map<String, dynamic> toMap(TaskModel music) => {
-    'name': music.name,
-    'color': music.color,
+  Map<String, dynamic> toJson() => _$TaskModelToJson(this);
+
+
+  static Map<String, dynamic> toMap(TaskModel task) => {
+    'name': task.name,
+    'color': task.color,
   };
 
   static String encode(List<TaskModel> tasks) => json.encode(
-    tasks
-        .map<Map<String, dynamic>>((task) => TaskModel.toMap(task))
-        .toList(),
+    tasks.map<Map<String, dynamic>>((task) => TaskModel.toMap(task)).toList(),
   );
 
   static List<TaskModel> decode(String tasks) =>

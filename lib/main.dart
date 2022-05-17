@@ -40,12 +40,6 @@ class _MainPageState extends State<TaskManagerMainPage> {
     _ipAddressFieldFocusNode = FocusNode();
     _nameFieldFocus = FocusNode();
     _passwordFieldFocus = FocusNode();
-
-    UserState.getSignInStatus()!.then((status) {
-      if(status == true){
-        Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskPage()));
-      }
-    });
   }
 
 
@@ -275,7 +269,7 @@ class _MainPageState extends State<TaskManagerMainPage> {
               UserState.userName = userData!.username;
             });
           }
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskPage()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => TaskPage(ip: ip)));
         }else if (userData!.status == 'account_not_exists'){
           _showMessage!.show(context, 5);
         }
