@@ -7,6 +7,7 @@ import 'package:intermax_task_manager/Tasks%20Settings/task_server_model.dart';
 import 'package:intermax_task_manager/User%20Details/user_details.dart';
 
 import '../Backup File Model/back_up_file_model.dart';
+import '../Privileges/privileges_model.dart';
 
 part 'server_side_api.chopper.dart';
 
@@ -82,6 +83,12 @@ abstract class ServerSideApi extends ChopperService{
   @Post(path: '/get_brigade_tasks.php')
   Future<Response<List<TaskServerModel>>> getBrigadeTask(@Body() var data);
 
+  @Post(path: '/get_privileges.php')
+  Future<Response<PrivilegesModel>> getPrivileges(@Body() var data);
+
+  @Post(path: '/submit_privileges.php')
+  Future<Response> submitPrivileges(@Body() var data);
+
   @Get(path: '/get_backup_files.php')
   Future<Response<List<BackupFile>>> getBackupFiles();
 
@@ -134,6 +141,11 @@ abstract class ServerSideApi extends ChopperService{
       case 7:
         converter = JsonToTypeConverter({
           BackupFile: (json) => BackupFile.fromJson(json)
+        });
+        break;
+      case 8:
+        converter = JsonToTypeConverter({
+          PrivilegesModel: (json) => PrivilegesModel.fromJson(json)
         });
         break;
     }

@@ -49,6 +49,7 @@ dependencies:
   universal_platform: ^1.0.0+1
   web_socket_channel: ^2.1.0
   location: ^4.3.0
+  sizer: ^2.0.15
 
 
 dev_dependencies:

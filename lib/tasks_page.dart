@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:chopper/chopper.dart';
 import 'package:intermax_task_manager/Brigade%20Model/brigade_model.dart';
 import 'package:intermax_task_manager/Maps%20API/maps.dart';
+import 'package:intermax_task_manager/Privileges/privileges.dart';
+import 'package:intermax_task_manager/Privileges/privileges_constants.dart';
+import 'package:intermax_task_manager/Privileges/privileges_for_current_user.dart';
 import 'package:intermax_task_manager/Status%20Data/status_model.dart';
 import 'package:flutter/material.dart';
 import 'package:intermax_task_manager/FCM%20Controller/fcm_controller.dart';
@@ -17,6 +20,7 @@ import 'package:intl/intl.dart';
 import 'package:location/location.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:roundcheckbox/roundcheckbox.dart';
+import 'package:sizer/sizer.dart';
 import 'package:web_socket_channel/html.dart';
 
 import 'Backup File Model/back_up_file_model.dart';
@@ -33,7 +37,6 @@ class TaskPage extends StatefulWidget {
 
 class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
 
-
   Future<Response<List<TaskModel>>>? _tasksModelFuture;
   Future<Response<List<BrigadeModel>>>? _brigadesModelFuture;
   Future<Response<List<BackupFile>>>? _backupFilesFuture;
@@ -42,6 +45,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
 
   Stream? _socketBroadcastStream;
   HtmlWebSocketChannel? _htmlWebSocketChannel;
+  Privileges? _privileges;
 
   StateSetter? taskInfoState;
   StateSetter? mapTaskInfoState;
@@ -121,6 +125,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
 
     _htmlWebSocketChannel = HtmlWebSocketChannel.connect('ws://${widget.ip}:1073');
     _socketBroadcastStream = _htmlWebSocketChannel!.stream.asBroadcastStream();
+    _privileges = Privileges.createInstance();
 
     _tasksModelFuture = ServerSideApi.create(UserState.temporaryIp, 5).getTasksFromServer();
     _brigadesModelFuture = ServerSideApi.create(UserState.temporaryIp, 6).getBrigadesFromServer();
@@ -152,486 +157,512 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveWrapper.builder(
-      Scaffold(
-          appBar: AppBar(
-            title: const Text(
-                'Планировщик задач Intermax', style: TextStyle(fontSize: 25)),
-            centerTitle: false,
-            backgroundColor: Colors.deepOrangeAccent,
-            automaticallyImplyLeading: false,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.calendar_today_outlined),
-                onPressed: () {
+    return Sizer(
+      builder: (context, orientation, deviceType){
+        return ResponsiveWrapper.builder(
+          Scaffold(
+              appBar: AppBar(
+                title: const Text(
+                    'Планировщик задач Intermax', style: TextStyle(fontSize: 25)),
+                centerTitle: false,
+                backgroundColor: Colors.deepOrangeAccent,
+                automaticallyImplyLeading: false,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    onPressed: () {
 
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.add),
-                onPressed: () => _showAddTaskDialog(),
-              ),
-              IconButton(
-                icon: const Icon(Icons.person_add),
-                onPressed: () => _showAddUserDialog(),
-              ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () => _showSignOutDialog(),
-              ),
-              PopupMenuButton(
-                icon: const Icon(Icons.settings),
-                tooltip: 'Настройки',
-                itemBuilder: (context) =>
-                const [
-                  PopupMenuItem(
-                    value: 1,
-                    child: Text('Изменить задания'),
+                    },
                   ),
-                  PopupMenuItem(
-                    value: 2,
-                    child: Text('Изменить бригад'),
+                  PrivilegesConstants.ADD_NEW_TASK ? IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () => _showAddTaskDialog(),
+                  ) : Container(),
+                  PrivilegesConstants.REGISTER_ADMIN || PrivilegesConstants.REGISTER_BRIGADE ? IconButton(
+                    icon: const Icon(Icons.person_add),
+                    onPressed: () => _showAddUserDialog(),
+                  ) : Container(),
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: () => _showSignOutDialog(),
                   ),
-                  PopupMenuItem(
-                    value: 3,
-                    child: Text('Сделать резервную копию'),
-                  ),
-                  PopupMenuItem(
-                    value: 4,
-                    child: Text('Восстановить из резервной копии'),
-                  ),
-                  PopupMenuItem(
-                    value: 5,
-                    child: Text('Изменить пароль'),
-                  ),
-                  PopupMenuItem(
-                      value: 6,
-                      child: Text('Изменить привилегии')
-                  )
-                ],
-                onSelected: (value) {
-                  switch (value) {
-                    case 1:
-                      TextEditingController tasksController = TextEditingController();
-                      showDialog(
-                          context: context,
-                          builder: (context) {
-                            return StatefulBuilder(
-                                builder: (context, setState) {
-                                  tasksDialogState = setState;
-                                  return SimpleDialog(
-                                      title: const Text('Задания', style: TextStyle(
-                                          color: Colors.black, fontSize: 30)),
-                                      contentPadding: const EdgeInsets.all(20),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                              3)),
-                                      backgroundColor: Colors.white,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            RoundCheckBox(
-                                              isChecked: _isRed,
-                                              uncheckedColor: Colors.red,
-                                              checkedColor: Colors.red,
-                                              checkedWidget: const Icon(
-                                                  Icons.check,
-                                                  color: Colors.white),
-                                              onTap: (value) {
-                                                setState(() {
-                                                  _isRed = true;
-                                                  _isGreen = false;
-                                                  _isBlue = false;
-                                                });
-                                              },
-                                            ),
-                                            const SizedBox(width: 5),
-                                            RoundCheckBox(
-                                              isChecked: _isGreen,
-                                              uncheckedColor: Colors.green,
-                                              checkedColor: Colors.green,
-                                              checkedWidget: const Icon(
-                                                  Icons.check,
-                                                  color: Colors.white),
-                                              onTap: (value) {
-                                                setState(() {
-                                                  _isGreen = true;
-                                                  _isRed = false;
-                                                  _isBlue = false;
-                                                });
-                                              },
-                                            ),
-                                            const SizedBox(width: 5),
-                                            RoundCheckBox(
-                                              isChecked: _isBlue,
-                                              uncheckedColor: Colors.blue,
-                                              checkedColor: Colors.blue,
-                                              checkedWidget: const Icon(
-                                                  Icons.check,
-                                                  color: Colors.white),
-                                              onTap: (value) {
-                                                setState(() {
-                                                  _isBlue = true;
-                                                  _isRed = false;
-                                                  _isGreen = false;
-                                                });
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Column(children: [
-                                          Row(children: [
-                                            Flexible(
-                                              child: TextFormField(
-                                                cursorColor: Colors
-                                                    .deepOrangeAccent,
-                                                focusNode: _tasksFocusNode,
-                                                keyboardType: TextInputType
-                                                    .text,
-                                                controller: tasksController,
-                                                decoration: InputDecoration(
-                                                  focusedBorder: OutlineInputBorder(
-                                                    borderRadius: BorderRadius
-                                                        .circular(3),
-                                                    borderSide: const BorderSide(
-                                                      color: Colors
-                                                          .deepOrangeAccent,
-                                                      width: 2,
-                                                    ),
+                  PrivilegesConstants.SETTINGS ? PopupMenuButton(
+                      icon: const Icon(Icons.settings),
+                      tooltip: 'Настройки',
+                      itemBuilder: (context) =>
+                        [
+                        const PopupMenuItem(
+                          value: 1,
+                          child: Text('Изменить задания'),
+                        ),
+                        const PopupMenuItem(
+                          value: 2,
+                          child: Text('Изменить бригад'),
+                        ),
+                        PopupMenuItem(
+                          value: PrivilegesConstants.BACKUP_DATA ? 3 : null,
+                          child: Text('Сделать резервную копию', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey)),
+                        ),
+                        PopupMenuItem(
+                          value: PrivilegesConstants.RESTORE_BACKUP ? 4 : null,
+                          child: Text('Восстановить из резервной копии', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey)),
+                        ),
+                        PopupMenuItem(
+                          value: PrivilegesConstants.CHANGE_PASSWORDS ? 5 : null,
+                          child: Text('Изменить пароль', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey)),
+                        ),
+                        PopupMenuItem(
+                            value: PrivilegesConstants.CHANGE_PRIVILEGES ? 6 : null,
+                            child: Text('Изменить привилегии', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey))
+                        )
+                      ],
+                      onSelected: (value) {
+                        switch (value) {
+                          case 1:
+                            TextEditingController tasksController = TextEditingController();
+                            showDialog(
+                                context: context,
+                                builder: (context) {
+                                  return StatefulBuilder(
+                                      builder: (context, setState) {
+                                        tasksDialogState = setState;
+                                        return SimpleDialog(
+                                            title: const Text('Задания', style: TextStyle(
+                                                color: Colors.black, fontSize: 30)),
+                                            contentPadding: const EdgeInsets.all(20),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(
+                                                    3)),
+                                            backgroundColor: Colors.white,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  RoundCheckBox(
+                                                    isChecked: _isRed,
+                                                    uncheckedColor: Colors.red,
+                                                    checkedColor: Colors.red,
+                                                    checkedWidget: const Icon(
+                                                        Icons.check,
+                                                        color: Colors.white),
+                                                    onTap: (value) {
+                                                      setState(() {
+                                                        _isRed = true;
+                                                        _isGreen = false;
+                                                        _isBlue = false;
+                                                      });
+                                                    },
                                                   ),
-                                                  border: OutlineInputBorder(
-                                                      borderRadius: BorderRadius
-                                                          .circular(3)),
-                                                  label: const Text('Задание'),
-                                                  labelStyle: TextStyle(
-                                                      color: _tasksFocusNode!
-                                                          .hasFocus
-                                                          ? Colors
-                                                          .deepOrangeAccent
-                                                          : Colors.grey),
-                                                ),
-
-                                                onTap: () {
-                                                  FocusScope.of(context)
-                                                      .requestFocus(
-                                                      _tasksFocusNode);
-                                                },
+                                                  const SizedBox(width: 5),
+                                                  RoundCheckBox(
+                                                    isChecked: _isGreen,
+                                                    uncheckedColor: Colors.green,
+                                                    checkedColor: Colors.green,
+                                                    checkedWidget: const Icon(
+                                                        Icons.check,
+                                                        color: Colors.white),
+                                                    onTap: (value) {
+                                                      setState(() {
+                                                        _isGreen = true;
+                                                        _isRed = false;
+                                                        _isBlue = false;
+                                                      });
+                                                    },
+                                                  ),
+                                                  const SizedBox(width: 5),
+                                                  RoundCheckBox(
+                                                    isChecked: _isBlue,
+                                                    uncheckedColor: Colors.blue,
+                                                    checkedColor: Colors.blue,
+                                                    checkedWidget: const Icon(
+                                                        Icons.check,
+                                                        color: Colors.white),
+                                                    onTap: (value) {
+                                                      setState(() {
+                                                        _isBlue = true;
+                                                        _isRed = false;
+                                                        _isGreen = false;
+                                                      });
+                                                    },
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            FloatingActionButton.small(
-                                                backgroundColor: Colors
-                                                    .deepOrangeAccent,
-                                                child: const Icon(Icons.add),
-                                                onPressed: () async {
-                                                  String? color;
-                                                  if (tasksController.text !=
-                                                      '') {
-                                                    if (_isRed == true) {
-                                                      color = 'red';
-                                                    } else
-                                                    if (_isGreen == true) {
-                                                      color = 'green';
-                                                    } else
-                                                    if (_isBlue == true) {
-                                                      color = 'blue';
-                                                    }
-
-
-                                                    var data = {
-                                                      'name': tasksController
+                                              const SizedBox(height: 10),
+                                              Column(children: [
+                                                Row(children: [
+                                                  Flexible(
+                                                    child: TextFormField(
+                                                      cursorColor: Colors
+                                                          .deepOrangeAccent,
+                                                      focusNode: _tasksFocusNode,
+                                                      keyboardType: TextInputType
                                                           .text,
-                                                      'color': color
-                                                    };
+                                                      controller: tasksController,
+                                                      decoration: InputDecoration(
+                                                        focusedBorder: OutlineInputBorder(
+                                                          borderRadius: BorderRadius
+                                                              .circular(3),
+                                                          borderSide: const BorderSide(
+                                                            color: Colors
+                                                                .deepOrangeAccent,
+                                                            width: 2,
+                                                          ),
+                                                        ),
+                                                        border: OutlineInputBorder(
+                                                            borderRadius: BorderRadius
+                                                                .circular(3)),
+                                                        label: const Text('Задание'),
+                                                        labelStyle: TextStyle(
+                                                            color: _tasksFocusNode!
+                                                                .hasFocus
+                                                                ? Colors
+                                                                .deepOrangeAccent
+                                                                : Colors.grey),
+                                                      ),
 
-                                                    _tasksModel!.add(TaskModel(
-                                                        name: tasksController
-                                                            .text,
-                                                        color: color));
-                                                    setState(() {});
-
-                                                    await ServerSideApi.create(
-                                                        UserState.temporaryIp,
-                                                        1)
-                                                        .addTaskToList(data)
-                                                        .whenComplete(() {
-                                                      tasksController.clear();
-                                                    });
-                                                  } else if (_isRed == false &&
-                                                      _isGreen == false &&
-                                                      _isBlue == false) {
-                                                    _showMessage!.show(
-                                                        context, 8);
-                                                  } else {
-                                                    _showMessage!.show(
-                                                        context, 3);
-                                                  }
-                                                })
-                                          ]),
-                                          SizedBox(
-                                              width: 400,
-                                              height: 400,
-                                              child: getTasksModel()
-                                          )
-                                        ])
-                                      ]);
-                                });
-                          });
-                      break;
-                    case 2:
-                      TextEditingController brigadesController = TextEditingController();
-                      showDialog(
-                          context: context,
-                          builder: (context) {
-                            return StatefulBuilder(
-                                builder: (context, setState) {
-                                  brigadeDialogState = setState;
-                                  return SimpleDialog(
-                                      title: const Text('Бригады',
-                                          style: TextStyle(color: Colors.black,
-                                              fontSize: 30)),
-                                      contentPadding: const EdgeInsets.all(20),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                              3)),
-                                      backgroundColor: Colors.white,
-                                      children: [
-                                        Column(children: [
-                                          Row(children: [
-                                            Flexible(
-                                              child: TextFormField(
-                                                cursorColor: Colors
-                                                    .deepOrangeAccent,
-                                                focusNode: _tasksFocusNode,
-                                                keyboardType: TextInputType
-                                                    .text,
-                                                controller: brigadesController,
-                                                decoration: InputDecoration(
-                                                  focusedBorder: OutlineInputBorder(
-                                                    borderRadius: BorderRadius
-                                                        .circular(3),
-                                                    borderSide: const BorderSide(
-                                                      color: Colors
-                                                          .deepOrangeAccent,
-                                                      width: 2,
+                                                      onTap: () {
+                                                        FocusScope.of(context)
+                                                            .requestFocus(
+                                                            _tasksFocusNode);
+                                                      },
                                                     ),
                                                   ),
-                                                  border: OutlineInputBorder(
-                                                      borderRadius: BorderRadius
-                                                          .circular(3)),
-                                                  label: const Text('Бригады'),
-                                                  labelStyle: TextStyle(
-                                                      color: _tasksFocusNode!
-                                                          .hasFocus
-                                                          ? Colors
-                                                          .deepOrangeAccent
-                                                          : Colors.grey),
-                                                ),
+                                                  const SizedBox(width: 10),
+                                                  FloatingActionButton.small(
+                                                      backgroundColor: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.deepOrangeAccent : Colors.grey,
+                                                      child: const Icon(Icons.add),
+                                                      onPressed: PrivilegesConstants.ADD_TASK_TEMPLATE ? () async {
+                                                        String? color;
+                                                        if (tasksController.text !=
+                                                            '') {
+                                                          if (_isRed == true) {
+                                                            color = 'red';
+                                                          } else
+                                                          if (_isGreen == true) {
+                                                            color = 'green';
+                                                          } else
+                                                          if (_isBlue == true) {
+                                                            color = 'blue';
+                                                          }
 
-                                                onTap: () {
-                                                  FocusScope.of(context)
-                                                      .requestFocus(
-                                                      _tasksFocusNode);
-                                                },
+
+                                                          var data = {
+                                                            'name': tasksController
+                                                                .text,
+                                                            'color': color
+                                                          };
+
+                                                          _tasksModel!.add(TaskModel(
+                                                              name: tasksController
+                                                                  .text,
+                                                              color: color));
+                                                          setState(() {});
+
+                                                          await ServerSideApi.create(
+                                                              UserState.temporaryIp,
+                                                              1)
+                                                              .addTaskToList(data)
+                                                              .whenComplete(() {
+                                                            tasksController.clear();
+                                                          });
+                                                        } else if (_isRed == false &&
+                                                            _isGreen == false &&
+                                                            _isBlue == false) {
+                                                          _showMessage!.show(
+                                                              context, 8);
+                                                        } else {
+                                                          _showMessage!.show(
+                                                              context, 3);
+                                                        }
+                                                      } : null)
+                                                ]),
+                                                SizedBox(
+                                                    width: 400,
+                                                    height: 400,
+                                                    child: getTasksModel()
+                                                )
+                                              ])
+                                            ]);
+                                      });
+                                });
+                            break;
+                          case 2:
+                            TextEditingController brigadesController = TextEditingController();
+                            showDialog(
+                                context: context,
+                                builder: (context) {
+                                  return StatefulBuilder(
+                                      builder: (context, setState) {
+                                        brigadeDialogState = setState;
+                                        return SimpleDialog(
+                                            title: const Text('Бригады',
+                                                style: TextStyle(color: Colors.black,
+                                                    fontSize: 30)),
+                                            contentPadding: const EdgeInsets.all(20),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(
+                                                    3)),
+                                            backgroundColor: Colors.white,
+                                            children: [
+                                              Column(children: [
+                                                Row(children: [
+                                                  Flexible(
+                                                    child: TextFormField(
+                                                      cursorColor: Colors
+                                                          .deepOrangeAccent,
+                                                      focusNode: _tasksFocusNode,
+                                                      keyboardType: TextInputType
+                                                          .text,
+                                                      controller: brigadesController,
+                                                      decoration: InputDecoration(
+                                                        focusedBorder: OutlineInputBorder(
+                                                          borderRadius: BorderRadius
+                                                              .circular(3),
+                                                          borderSide: const BorderSide(
+                                                            color: Colors
+                                                                .deepOrangeAccent,
+                                                            width: 2,
+                                                          ),
+                                                        ),
+                                                        border: OutlineInputBorder(
+                                                            borderRadius: BorderRadius
+                                                                .circular(3)),
+                                                        label: const Text('Бригады'),
+                                                        labelStyle: TextStyle(
+                                                            color: _tasksFocusNode!
+                                                                .hasFocus
+                                                                ? Colors
+                                                                .deepOrangeAccent
+                                                                : Colors.grey),
+                                                      ),
+
+                                                      onTap: () {
+                                                        FocusScope.of(context)
+                                                            .requestFocus(
+                                                            _tasksFocusNode);
+                                                      },
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  FloatingActionButton.small(
+                                                      backgroundColor: PrivilegesConstants.ADD_BRIGADE ? Colors.deepOrangeAccent : Colors.grey,
+                                                      child: const Icon(Icons.add),
+                                                      onPressed: PrivilegesConstants.ADD_BRIGADE ? () async {
+                                                        if (brigadesController.text !=
+                                                            '') {
+                                                          var data = {
+                                                            'name': brigadesController
+                                                                .text
+                                                          };
+
+                                                          _brigadeModel!.add(
+                                                              BrigadeModel(
+                                                                  name: brigadesController
+                                                                      .text));
+                                                          setState(() {});
+                                                          dataTableState!(() {});
+
+                                                          await ServerSideApi.create(UserState.temporaryIp, 1).addBrigade(data).whenComplete(() {
+                                                            brigadesController
+                                                                .clear();
+                                                          });
+                                                        } else {
+                                                          _showMessage!.show(
+                                                              context, 3);
+                                                        }
+                                                        setState(() {});
+                                                      } : null)
+                                                ]),
+                                                SizedBox(
+                                                    width: 400,
+                                                    height: 400,
+                                                    child: getBrigadesModel()
+                                                )
+                                              ])
+                                            ]);
+                                      });
+                                });
+                            break;
+                          case 3:
+                            TextEditingController fileNameTextController = TextEditingController();
+                            showDialog(
+                                context: context,
+                                builder: (context) {
+                                  return StatefulBuilder(
+                                    builder: (context, setState) {
+                                      return SimpleDialog(
+                                        title: const Text('Сделать резервную копию'),
+                                        contentPadding: const EdgeInsets.all(10),
+                                        shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.zero),
+                                        backgroundColor: Colors.white,
+                                        children: [
+                                          TextFormField(
+                                            keyboardType: TextInputType.text,
+                                            controller: fileNameTextController,
+                                            cursorColor: Colors.deepOrangeAccent,
+                                            decoration: const InputDecoration(
+                                              border: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.zero),
+                                              label: Text('Имя файла'),
+                                              labelStyle: TextStyle(
+                                                  color: Colors.deepOrangeAccent),
+                                              enabledBorder: OutlineInputBorder(
+                                                  borderSide: BorderSide(
+                                                      color: Colors.deepOrangeAccent)
+                                              ),
+
+                                              focusedBorder: OutlineInputBorder(
+                                                  borderSide: BorderSide(
+                                                      color: Colors.deepOrangeAccent)
                                               ),
                                             ),
-                                            const SizedBox(width: 10),
-                                            FloatingActionButton.small(
-                                                backgroundColor: Colors
-                                                    .deepOrangeAccent,
-                                                child: const Icon(Icons.add),
-                                                onPressed: () async {
-                                                  if (brigadesController.text !=
-                                                      '') {
-                                                    var data = {
-                                                      'name': brigadesController
-                                                          .text
-                                                    };
+                                          ),
 
-                                                    _brigadeModel!.add(
-                                                        BrigadeModel(
-                                                            name: brigadesController
-                                                                .text));
-                                                    setState(() {});
-                                                    dataTableState!(() {});
+                                          const SizedBox(height: 10),
 
-                                                    await ServerSideApi.create(
-                                                        UserState.temporaryIp,
-                                                        1)
-                                                        .addBrigade(data)
-                                                        .whenComplete(() {
-                                                      brigadesController
-                                                          .clear();
-                                                    });
-                                                  } else {
-                                                    _showMessage!.show(
-                                                        context, 3);
-                                                  }
-                                                  setState(() {});
-                                                })
-                                          ]),
-                                          SizedBox(
-                                              width: 400,
-                                              height: 400,
-                                              child: getBrigadesModel()
-                                          )
-                                        ])
-                                      ]);
-                                });
-                          });
-                      break;
-                    case 3:
-                      TextEditingController fileNameTextController = TextEditingController();
-                      showDialog(
-                          context: context,
-                          builder: (context) {
-                            return StatefulBuilder(
-                              builder: (context, setState) {
-                                return SimpleDialog(
-                                  title: const Text('Сделать резервную копию'),
-                                  contentPadding: const EdgeInsets.all(10),
-                                  shape: const RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.zero),
-                                  backgroundColor: Colors.white,
-                                  children: [
-                                    TextFormField(
-                                      keyboardType: TextInputType.text,
-                                      controller: fileNameTextController,
-                                      cursorColor: Colors.deepOrangeAccent,
-                                      decoration: const InputDecoration(
-                                        border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.zero),
-                                        label: Text('Имя файла'),
-                                        labelStyle: TextStyle(
-                                            color: Colors.deepOrangeAccent),
-                                        enabledBorder: OutlineInputBorder(
-                                            borderSide: BorderSide(
-                                                color: Colors.deepOrangeAccent)
-                                        ),
-
-                                        focusedBorder: OutlineInputBorder(
-                                            borderSide: BorderSide(
-                                                color: Colors.deepOrangeAccent)
-                                        ),
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 10),
-
-                                    FloatingActionButton.extended(
-                                      label: const Text('Сделать резервную копию'),
-                                      onPressed: () => _backupData(fileNameTextController.text),
-                                      backgroundColor: Colors.deepOrangeAccent,
-                                      shape: const BeveledRectangleBorder(
-                                          borderRadius: BorderRadius.zero
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
+                                          FloatingActionButton.extended(
+                                            label: const Text('Сделать резервную копию'),
+                                            onPressed: () => _backupData(fileNameTextController.text),
+                                            backgroundColor: Colors.deepOrangeAccent,
+                                            shape: const BeveledRectangleBorder(
+                                                borderRadius: BorderRadius.zero
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
                             );
-                          }
-                      );
-                      break;
-                    case 4:
-                      showDialog(
-                        context: context,
-                        builder: (context){
-                          return StatefulBuilder(
-                            builder: (context, setState){
-                              return SimpleDialog(
-                                title: const Text('Восстановить из резервной копии'),
-                                contentPadding: const EdgeInsets.all(10),
-                                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                                backgroundColor: Colors.white,
-                                children: [
-                                  SizedBox(
-                                    height: 400,
-                                    width: 200,
-                                    child: getBackupFiles(),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  FloatingActionButton.extended(
-                                      label: const Text('Восстановить'),
-                                      onPressed: () => _restoreData(),
-                                      backgroundColor: Colors.deepOrangeAccent,
-                                      shape: const BeveledRectangleBorder(
-                                        borderRadius: BorderRadius.zero
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        }
-                      );
-                      break;
-                    case 5:
-                      showDialog(
-                        context: context,
-                        builder: (context){
-                          return StatefulBuilder(
-                            builder: (context, setState){
-                              return SimpleDialog(
-                                title: const Text(
-                                  'Изменить пароль',
-                                  style: TextStyle(color: Colors.black, fontSize: 30),
-                                ),
-                                contentPadding: const EdgeInsets.all(20.0),
-                                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                                backgroundColor: Colors.white,
-                                children: [
-                                  TabBar(
-                                    controller: _tabController1,
-                                    indicatorColor: Colors.deepOrangeAccent,
-                                    unselectedLabelColor: Colors.grey,
-                                    labelColor: Colors.deepOrangeAccent,
-                                    tabs: const [
-                                      Tab(text: 'Админы'),
-                                      Tab(text: 'Бригады')
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-                                  SizedBox(
-                                    height: 350,
-                                    width: 200,
-                                    child: TabBarView(
-                                      controller: _tabController1,
-                                      children: [
-                                        SizedBox(
-                                          height: 400,
-                                          width: 400,
-                                          child: getAdmins(),
+                            break;
+                          case 4:
+                            showDialog(
+                                context: context,
+                                builder: (context){
+                                  return StatefulBuilder(
+                                    builder: (context, setState){
+                                      return SimpleDialog(
+                                        title: const Text('Восстановить из резервной копии'),
+                                        contentPadding: const EdgeInsets.all(10),
+                                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                                        backgroundColor: Colors.white,
+                                        children: [
+                                          SizedBox(
+                                            height: 400,
+                                            width: 200,
+                                            child: getBackupFiles(),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          FloatingActionButton.extended(
+                                            label: const Text('Восстановить'),
+                                            onPressed: () => _restoreData(),
+                                            backgroundColor: Colors.deepOrangeAccent,
+                                            shape: const BeveledRectangleBorder(
+                                                borderRadius: BorderRadius.zero
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+                            );
+                            break;
+                          case 5:
+                            showDialog(
+                                context: context,
+                                builder: (context){
+                                  return StatefulBuilder(
+                                    builder: (context, setState){
+                                      return SimpleDialog(
+                                        title: const Text(
+                                          'Изменить пароль',
+                                          style: TextStyle(color: Colors.black, fontSize: 30),
                                         ),
-                                        SizedBox(
-                                          height: 400,
-                                          width: 400,
-                                          child: getBrigades(),
-                                        )
-                                      ],
-                                    ),
-                                  )
-                                ],
-                              );
-                            },
-                          );
+                                        contentPadding: const EdgeInsets.all(20.0),
+                                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                                        backgroundColor: Colors.white,
+                                        children: [
+                                          TabBar(
+                                            controller: _tabController1,
+                                            indicatorColor: Colors.deepOrangeAccent,
+                                            unselectedLabelColor: Colors.grey,
+                                            labelColor: Colors.deepOrangeAccent,
+                                            tabs: const [
+                                              Tab(text: 'Админы'),
+                                              Tab(text: 'Бригады')
+                                            ],
+                                          ),
+                                          const SizedBox(height: 20),
+                                          SizedBox(
+                                            height: 350,
+                                            width: 200,
+                                            child: TabBarView(
+                                              controller: _tabController1,
+                                              children: [
+                                                SizedBox(
+                                                  height: 400,
+                                                  width: 400,
+                                                  child: getAdmins('for passwords'),
+                                                ),
+                                                SizedBox(
+                                                  height: 400,
+                                                  width: 400,
+                                                  child: getBrigades(),
+                                                )
+                                              ],
+                                            ),
+                                          )
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+                            );
+                            break;
+                          case 6:
+                            showDialog(
+                                context: context,
+                                builder: (context){
+                                  return StatefulBuilder(
+                                    builder: (context, setState){
+                                      return SimpleDialog(
+                                        title: const Text(
+                                          'Изменить привилегии',
+                                          style: TextStyle(color: Colors.black, fontSize: 30),
+                                        ),
+                                        contentPadding: const EdgeInsets.all(20.0),
+                                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                                        backgroundColor: Colors.white,
+                                        children: [
+                                          const SizedBox(height: 20),
+                                          SizedBox(
+                                            height: 350,
+                                            width: 200,
+                                            child: getAdmins('for privileges'),
+                                          )
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+                            );
+                            break;
                         }
-                      );
-                      break;
-                  }
-                 }
-                )
-              ],
+                      }
+                  ) : Container()
+                ],
+              ),
+              body: getTasks()
           ),
-          body: getTasks()
-      ),
-      breakpoints: const [
-        ResponsiveBreakpoint.resize(500, name: MOBILE),
-        ResponsiveBreakpoint.resize(800, name: TABLET),
-        ResponsiveBreakpoint.resize(1000, name: DESKTOP),
-      ],
-      defaultScale: true,
+          breakpoints: const [
+            ResponsiveBreakpoint.resize(500, name: MOBILE),
+            ResponsiveBreakpoint.resize(800, name: TABLET),
+            ResponsiveBreakpoint.resize(1000, name: DESKTOP),
+          ],
+          defaultScale: true,
+        );
+      },
     );
   }
 
@@ -736,7 +767,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
   }
 
   // Getting admins from server
-  FutureBuilder<Response<List<User>>> getAdmins(){
+  FutureBuilder<Response<List<User>>> getAdmins(String why){
     return FutureBuilder<Response<List<User>>>(
       future: _getAdminsFuture,
       builder: (context, snapshot) {
@@ -749,7 +780,11 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         }
         if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
           _adminsList = snapshot.data!.body;
-          return createAdminsDialogContent();
+          if(why == 'for passwords'){
+            return createAdminsDialogContent();
+          }else{
+            return createAdminsDialogForPrivileges();
+          }
         } else {
           return const Center(
             child: Text('Список пуст', style: TextStyle(fontSize: 20)),
@@ -849,6 +884,38 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                   ]
                 );
               })
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Creating admins dialog content
+  StatefulBuilder createAdminsDialogForPrivileges(){
+    return StatefulBuilder(
+      builder: (context, setState){
+        changeUserPassDialogState = setState;
+        return SizedBox.expand(
+          child: SingleChildScrollView(
+            child: DataTable(
+                columnSpacing: 10,
+                columns: const [
+                  DataColumn(label: Text('Имя')),
+                  DataColumn(label: Text('')),
+                ],
+                rows: List<DataRow>.generate(_adminsList!.length, (index){
+                  User admins = _adminsList![index];
+                  return DataRow(
+                      cells: [
+                        DataCell(Text(admins.username)),
+                        DataCell(IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () => _showPrivilegesDialog(admins)
+                        ))
+                      ]
+                  );
+                })
             ),
           ),
         );
@@ -1048,39 +1115,42 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                return DataRow(
                  cells: [
                    DataCell(Text(task.task, style: TextStyle(color: Color(int.parse('0x' + task.color))))),
-                   DataCell(Padding(
-                     padding: const EdgeInsets.only(left: 10),
-                     child: StatefulBuilder(
-                       builder: (context, setState) {
-                         return DropdownButton<String>(
-                           hint: const Text('Выберите бригаду'),
-                           value: brigadesValue,
-                           onChanged: (String? value) {
-                             setState(() {
-                               brigadesValue = value;
-                               var data = {
-                                 'ip': UserState.temporaryIp,
-                                 'id': task.id,
-                                 'brigade': brigadesValue
-                               };
-                               ServerSideApi.create(UserState.temporaryIp, 1)
-                                   .changeBrigade(data)
-                                   .then((value) {
-                                 _notifyBrigades!.notify(
-                                     task.address, brigadesValue!, 'Новая задача',
-                                     task.date, task.time,
-                                     task.isUrgent == true ? "Срочно" : "Не срочно");
+                   DataCell(IgnorePointer(
+                     ignoring: !PrivilegesConstants.ASSIGN_TASK_TO_BRIGADE,
+                     child: Padding(
+                       padding: const EdgeInsets.only(left: 10),
+                       child: StatefulBuilder(
+                         builder: (context, setState) {
+                           return DropdownButton<String>(
+                             hint: const Text('Выберите бригаду'),
+                             value: brigadesValue,
+                             onChanged: (String? value) {
+                               setState(() {
+                                 brigadesValue = value;
+                                 var data = {
+                                   'ip': UserState.temporaryIp,
+                                   'id': task.id,
+                                   'brigade': brigadesValue
+                                 };
+                                 ServerSideApi.create(UserState.temporaryIp, 1)
+                                     .changeBrigade(data)
+                                     .then((value) {
+                                   _notifyBrigades!.notify(
+                                       task.address, brigadesValue!, 'Новая задача',
+                                       task.date, task.time,
+                                       task.isUrgent == true ? "Срочно" : "Не срочно");
+                                 });
                                });
-                             });
-                           },
-                           items: _brigadeModel!.map<DropdownMenuItem<String>>((brigade) {
-                             return DropdownMenuItem(
-                               value: brigade.name,
-                               child: Text(brigade.name),
-                             );
-                           }).toList(),
-                         );
-                       },
+                             },
+                             items: _brigadeModel!.map<DropdownMenuItem<String>>((brigade) {
+                               return DropdownMenuItem(
+                                 value: brigade.name,
+                                 child: Text(brigade.name),
+                               );
+                             }).toList(),
+                           );
+                         },
+                       ),
                      ),
                    )),
                    DataCell(Padding(
@@ -1164,54 +1234,57 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                      padding: const EdgeInsets.only(left: 10),
                      child: Text(task.addedBy),
                    )),
-                   DataCell(Padding(
-                     padding: const EdgeInsets.only(left: 10),
-                     child: StatefulBuilder(
-                       builder: (context, setState) {
-                         return DropdownButton<String>(
-                           value: status,
-                           onChanged: (String? value) {
-                             task.status = value!;
-                             setState(() {
-                               status = value;
-                               var data = {
-                                 'ip': UserState.temporaryIp,
-                                 'id': task.id,
-                                 'status': value
-                               };
-                               ServerSideApi.create(UserState.temporaryIp, 1)
-                                   .updateStatus(data);
-                               var socketData = {
-                                 'id': task.id,
-                                 'brigade': brigadesValue,
-                                 'status': value
-                               };
+                   DataCell(IgnorePointer(
+                     ignoring: !PrivilegesConstants.CHANGE_TASK_STATUS,
+                     child: Padding(
+                       padding: const EdgeInsets.only(left: 10),
+                       child: StatefulBuilder(
+                         builder: (context, setState) {
+                           return DropdownButton<String>(
+                             value: status,
+                             onChanged: (String? value) {
+                               task.status = value!;
+                               setState(() {
+                                 status = value;
+                                 var data = {
+                                   'ip': UserState.temporaryIp,
+                                   'id': task.id,
+                                   'status': value
+                                 };
+                                 ServerSideApi.create(UserState.temporaryIp, 1)
+                                     .updateStatus(data);
+                                 var socketData = {
+                                   'id': task.id,
+                                   'brigade': brigadesValue,
+                                   'status': value
+                                 };
 
-                               _htmlWebSocketChannel!.sink.add(
-                                   json.encode(socketData));
-                             });
-                           },
-                           items: _statusList!.map<DropdownMenuItem<String>>((status) {
-                             return DropdownMenuItem(
-                               value: status.status,
-                               child: Text(status.status,
-                                   style: TextStyle(color: status.color)),
-                             );
-                           }).toList(),
-                         );
-                       },
+                                 _htmlWebSocketChannel!.sink.add(
+                                     json.encode(socketData));
+                               });
+                             },
+                             items: _statusList!.map<DropdownMenuItem<String>>((status) {
+                               return DropdownMenuItem(
+                                 value: status.status,
+                                 child: Text(status.status,
+                                     style: TextStyle(color: status.color)),
+                               );
+                             }).toList(),
+                           );
+                         },
+                       ),
                      ),
                    )),
                    DataCell(Center(
                      child: IconButton(
-                       icon: const Icon(Icons.edit),
-                       onPressed: () => _showEditTaskDialog(task),
+                       icon: Icon(Icons.edit, color: PrivilegesConstants.EDIT_TASK ? Colors.black : Colors.grey),
+                       onPressed: PrivilegesConstants.EDIT_TASK ? () => _showEditTaskDialog(task) : null,
                      ),
                    )),
                    DataCell(Center(
                      child: IconButton(
-                       icon: const Icon(Icons.delete),
-                       onPressed: () {
+                       icon: Icon(Icons.delete, color: PrivilegesConstants.DELETE_TASK ? Colors.black : Colors.grey),
+                       onPressed: PrivilegesConstants.DELETE_TASK ? () {
                          Widget _deleteButton = TextButton(
                            child: const Text(
                              'Удалить',
@@ -1253,13 +1326,13 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                              builder: (context) {
                                return dialog;
                              });
-                       },
+                       } : null,
                      ),
                    )),
                    DataCell(Center(
                      child: IconButton(
-                       icon: const Icon(Icons.info),
-                       onPressed: () {
+                       icon: Icon(Icons.info, color: PrivilegesConstants.GET_TASK_INFO ? Colors.black : Colors.grey),
+                       onPressed: PrivilegesConstants.GET_TASK_INFO ? () {
                          requestLocationData(task);
                          double height = MediaQuery.of(context).size.height;
                          double width = MediaQuery.of(context).size.width;
@@ -1345,7 +1418,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                );
                              }
                          );
-                       },
+                       } : null,
                      ),
                    ))
                  ],
@@ -1380,8 +1453,8 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
             ),
           ),
           trailing: IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () async {
+            icon: Icon(Icons.delete, color: PrivilegesConstants.DELETE_TASK_TEMPLATE ? Colors.black : Colors.grey),
+            onPressed: PrivilegesConstants.DELETE_TASK_TEMPLATE ? () async {
               var data = {
                 'name' : _tasksModel![index].name
               };
@@ -1391,7 +1464,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
               tasksDialogState!((){});
 
               await ServerSideApi.create(UserState.temporaryIp, 1).deleteTaskFromList(data);
-            },
+            } : null,
           ),
         );
       }),
@@ -1407,9 +1480,8 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
               _brigadeModel![index].name
           ),
           trailing: IconButton(
-            icon: const Icon(
-                Icons.delete),
-            onPressed: () async {
+            icon: Icon(Icons.delete, color: PrivilegesConstants.DELETE_BRIGADE ? Colors.black : Colors.grey),
+            onPressed: PrivilegesConstants.DELETE_BRIGADE ? () async {
               var data = {
                 'name' : _brigadeModel![index].name
               };
@@ -1420,7 +1492,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
               dataTableState!((){});
 
               await ServerSideApi.create(UserState.temporaryIp, 1).deleteBrigadeFromList(data);
-            },
+            } : null,
           ),
         );
       }),
@@ -1864,7 +1936,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                     child: TabBarView(
                       controller: _tabController,
                       children: [
-                        Column(
+                        PrivilegesConstants.REGISTER_ADMIN ? Column(
                           children: [
                             const SizedBox(height: 5),
                             TextFormField(
@@ -1968,8 +2040,8 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                 onPressed: () => _registerUser(controllers)
                             ),
                           ],
-                        ),
-                        Column(
+                        ) : Container(),
+                        PrivilegesConstants.REGISTER_BRIGADE ? Column(
                           children: [
                             const SizedBox(height: 5),
                             TextFormField(
@@ -2098,7 +2170,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                         brigadeControllers, brigadesValue)
                             ),
                           ],
-                        ),
+                        ) : Container(),
                       ],
                     ),
                   )
@@ -2720,6 +2792,361 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         user.password = password;
       });
     });
+  }
+
+  // Show privileges dialog
+  void _showPrivilegesDialog(User user){
+    var name = user.username;
+
+    _privileges!.getPrivilegesForCurrentUser(name).whenComplete((){
+      showDialog(
+        context: context,
+        builder: (context){
+          return StatefulBuilder(
+            builder: (context, setState){
+              return SimpleDialog(
+                title: Text('Изменить привилегии $name'),
+                contentPadding: const EdgeInsets.all(10),
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                backgroundColor: Colors.white,
+                children: [
+                  Divider(thickness: 0.3.sp),
+                  SizedBox(
+                    width: 35.w,
+                    child: SingleChildScrollView(
+                      child: Row(
+                        children: [
+                          Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.ADD_NEW_TASK,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.ADD_NEW_TASK = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Добавить задачу                  '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                  checkColor: Colors.white,
+                                  activeColor: Colors.deepOrangeAccent,
+                                  value: PrivilegesForCurrentUser.DELETE_TASK,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      PrivilegesForCurrentUser.DELETE_TASK = value!;
+                                    });
+                                  },
+                                ),
+                                  Text('Удалить задачу                      '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.ASSIGN_TASK_TO_BRIGADE,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.ASSIGN_TASK_TO_BRIGADE = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Присвоить задачу бригаду'),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.CHANGE_TASK_STATUS,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.CHANGE_TASK_STATUS = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Изменить статус задачи     '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.REGISTER_BRIGADE,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.REGISTER_BRIGADE = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Зарегистрировать бригаду'),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.ADD_TASK_TEMPLATE,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.ADD_TASK_TEMPLATE = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Добавить шаблон задачи  '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.ADD_BRIGADE,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.ADD_BRIGADE = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Добавить бригад                   '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.BACKUP_DATA,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.BACKUP_DATA = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Сделать резервную копию '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.CHANGE_PASSWORDS,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.CHANGE_PASSWORDS = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Изменить пароля                   '),
+                                ],
+                              )
+                            ],
+                          ),
+                          SizedBox(width: 10.w),
+                          Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.EDIT_TASK,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.EDIT_TASK = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Изменить задачу                               '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.GET_TASK_INFO,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.GET_TASK_INFO = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Смотреть статус задачи                 '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.REGISTER_ADMIN,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.REGISTER_ADMIN = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Зарегистрировать админа             '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.SETTINGS,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.SETTINGS = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text("Раздел 'Настройки'                        "),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.DELETE_TASK_TEMPLATE,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.DELETE_TASK_TEMPLATE = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Удалить шаблон задачи                '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.DELETE_BRIGADE,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.DELETE_BRIGADE = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Удалить бригад                              '),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.RESTORE_BACKUP,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.RESTORE_BACKUP = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Восстановить из резервной копии'),
+                                ],
+                              ),
+                              SizedBox(height: 1.h),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    activeColor: Colors.deepOrangeAccent,
+                                    value: PrivilegesForCurrentUser.CHANGE_PRIVILEGES,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        PrivilegesForCurrentUser.CHANGE_PRIVILEGES = value!;
+                                      });
+                                    },
+                                  ),
+                                  Text('Изменить привилегии                         '),
+                                ],
+                              ),
+                            ],
+                          )
+                        ],
+                      )
+                    ),
+                  ),
+                  SizedBox(height: 3.h),
+                  FloatingActionButton.extended(
+                    label: Text('Потдвердить'),
+                    backgroundColor: Colors.deepOrangeAccent,
+                    shape: const BeveledRectangleBorder(borderRadius: BorderRadius.all(Radius.zero)),
+                    onPressed: () => _submitPrivileges(name),
+                  )
+                ],
+              );
+            },
+          );
+        }
+      );
+    });
+  }
+
+  // Submitting privileges
+  void _submitPrivileges(String name) async {
+    var data = {
+      'user' : name,
+
+      'add_new_task' : PrivilegesForCurrentUser.ADD_NEW_TASK,
+      'edit_task' : PrivilegesForCurrentUser.EDIT_TASK,
+      'delete_task' : PrivilegesForCurrentUser.DELETE_TASK,
+      'get_task_info' : PrivilegesForCurrentUser.GET_TASK_INFO,
+      'assign_task_to_brigade' : PrivilegesForCurrentUser.ASSIGN_TASK_TO_BRIGADE,
+      'change_task_status' : PrivilegesForCurrentUser.CHANGE_TASK_STATUS,
+      'register_admin' : PrivilegesForCurrentUser.REGISTER_ADMIN,
+      'register_brigade' : PrivilegesForCurrentUser.REGISTER_BRIGADE,
+      'settings' : PrivilegesForCurrentUser.SETTINGS,
+      'add_task_template' : PrivilegesForCurrentUser.ADD_TASK_TEMPLATE,
+      'delete_task_template' : PrivilegesForCurrentUser.DELETE_TASK_TEMPLATE,
+      'add_brigade' : PrivilegesForCurrentUser.ADD_BRIGADE,
+      'delete_brigade' : PrivilegesForCurrentUser.DELETE_BRIGADE,
+      'backup_data' : PrivilegesForCurrentUser.BACKUP_DATA,
+      'restore_backup' : PrivilegesForCurrentUser.RESTORE_BACKUP,
+      'change_passwords' : PrivilegesForCurrentUser.CHANGE_PASSWORDS,
+      'change_privileges' : PrivilegesForCurrentUser.CHANGE_PRIVILEGES,
+    };
+
+    Response response = await ServerSideApi.create(UserState.temporaryIp, 1).submitPrivileges(data);
+    if(response.body == 'SUCCEED'){
+      Navigator.pop(context);
+      Navigator.pop(context);
+      _showMessage!.show(context, 7);
+
+      PrivilegesConstants.clear();
+    }
   }
 }
 

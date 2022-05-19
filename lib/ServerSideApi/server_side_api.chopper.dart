@@ -201,6 +201,22 @@ class _$ServerSideApi extends ServerSideApi {
   }
 
   @override
+  Future<Response<PrivilegesModel>> getPrivileges(dynamic data) {
+    final $url = '/get_privileges.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<PrivilegesModel, PrivilegesModel>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> submitPrivileges(dynamic data) {
+    final $url = '/submit_privileges.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
   Future<Response<List<BackupFile>>> getBackupFiles() {
     final $url = '/get_backup_files.php';
     final $request = Request('GET', $url, client.baseUrl);

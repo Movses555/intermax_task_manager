@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intermax_task_manager/Brigades%20Settings/brigade_details.dart';
 import 'package:intermax_task_manager/Flutter%20Toast/flutter_toast.dart';
+import 'package:intermax_task_manager/Privileges/privileges.dart';
 import 'package:intermax_task_manager/ServerSideApi/server_side_api.dart';
 import 'package:intermax_task_manager/User%20Details/user_details.dart';
 import 'package:intermax_task_manager/User%20State/user_state.dart';
@@ -30,6 +31,8 @@ class _MainPageState extends State<TaskManagerMainPage> {
   var _nameFieldFocus;
   var _passwordFieldFocus;
 
+  Privileges? _privileges;
+
   ShowMessage? _showMessage;
 
   @override
@@ -37,6 +40,8 @@ class _MainPageState extends State<TaskManagerMainPage> {
     super.initState();
 
     _showMessage = ShowMessage.init();
+    _privileges = Privileges.createInstance();
+
     _ipAddressFieldFocusNode = FocusNode();
     _nameFieldFocus = FocusNode();
     _passwordFieldFocus = FocusNode();
@@ -250,6 +255,7 @@ class _MainPageState extends State<TaskManagerMainPage> {
 
     return Future.wait([
       ServerSideApi.create(ip, 2).loginUser(data).then((value) => userData = value.body),
+      _privileges!.getPrivileges(name)
     ]).whenComplete(() async {
       if(ip == '' || name == '' || password == ''){
         _showMessage!.show(context, 3);
