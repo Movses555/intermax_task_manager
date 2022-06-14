@@ -30,11 +30,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.check),
+              Icon(Icons.check, color: Colors.white),
               SizedBox(
                 width: 5,
               ),
-              Text("Вы успешно зарегистрировались"),
+              Text("Вы успешно зарегистрировались", style: TextStyle(color: Colors.white)),
             ],
           ),
         );
@@ -48,11 +48,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.error),
+              Icon(Icons.error, color: Colors.white),
               SizedBox(
                 width: 5
               ),
-              Text("Аккаунт с таким именем уже существует"),
+              Text("Аккаунт с таким именем уже существует", style: TextStyle(color: Colors.white)),
             ],
           ),
         );
@@ -66,11 +66,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.warning),
+              Icon(Icons.warning, color: Colors.white),
               SizedBox(
                 width: 5,
               ),
-              Text("Пожалуйста заполните все поля"),
+              Text("Пожалуйста заполните все поля", style: TextStyle(color: Colors.white)),
             ],
           ),
         );
@@ -85,11 +85,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.check),
+              Icon(Icons.check, color: Colors.white),
               SizedBox(
                 width: 5,
               ),
-               Text("Добро пожаловать"),
+               Text("Добро пожаловать", style: TextStyle(color: Colors.white)),
             ],
           ),
         );
@@ -103,11 +103,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.warning),
+              Icon(Icons.warning, color: Colors.white),
               SizedBox(
                 width: 5,
               ),
-              Text("Неверное имя пользователя или пароль"),
+              Text("Неверное имя пользователя или пароль", style: TextStyle(color: Colors.white)),
             ],
           ),
         );
@@ -121,11 +121,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.warning),
+              Icon(Icons.warning, color: Colors.white),
               SizedBox(
                 width: 5,
               ),
-              Text("Неверный хост"),
+              Text("Неверный хост", style: TextStyle(color: Colors.white)),
             ],
           ),
         );
@@ -140,11 +140,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.check),
+              Icon(Icons.check, color: Colors.white),
               SizedBox(
                 width: 5.0,
               ),
-              Text("Успешно"),
+              Text("Успешно", style: TextStyle(color: Colors.white)),
             ],
           ),
         );
@@ -159,11 +159,11 @@ class ShowMessage{
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.warning),
+              Icon(Icons.warning, color: Colors.white),
               SizedBox(
                 width: 5.0,
               ),
-              Text("Выберите цвет задания"),
+              Text("Выберите цвет задания", style: TextStyle(color: Colors.white)),
             ],
           ),
         );

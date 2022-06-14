@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:chopper/chopper.dart';
+import 'package:data_table_2/paginated_data_table_2.dart';
 import 'package:intermax_task_manager/Brigade%20Model/brigade_model.dart';
+import 'package:intermax_task_manager/Brigades%20Settings/brigade_details.dart';
 import 'package:intermax_task_manager/Maps%20API/maps.dart';
 import 'package:intermax_task_manager/Privileges/privileges.dart';
 import 'package:intermax_task_manager/Privileges/privileges_constants.dart';
 import 'package:intermax_task_manager/Privileges/privileges_for_current_user.dart';
+import 'package:intermax_task_manager/Provider/stop_watch_provider.dart';
 import 'package:intermax_task_manager/Status%20Data/status_model.dart';
 import 'package:flutter/material.dart';
 import 'package:intermax_task_manager/FCM%20Controller/fcm_controller.dart';
@@ -18,6 +21,7 @@ import 'package:intermax_task_manager/User%20State/user_state.dart';
 import 'package:intermax_task_manager/main.dart';
 import 'package:intl/intl.dart';
 import 'package:location/location.dart';
+import 'package:provider/provider.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:roundcheckbox/roundcheckbox.dart';
 import 'package:sizer/sizer.dart';
@@ -43,18 +47,20 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
   Future<Response<List<User>>>? _getAdminsFuture;
   Future<Response<List<User>>>? _getBrigadesFuture;
 
+
+
   Stream? _socketBroadcastStream;
   HtmlWebSocketChannel? _htmlWebSocketChannel;
   Privileges? _privileges;
 
   StateSetter? taskInfoState;
-  StateSetter? mapTaskInfoState;
   StateSetter? mapState;
   StateSetter? tasksDialogState;
   StateSetter? brigadeDialogState;
   StateSetter? dataTableState;
   StateSetter? changeUserPassDialogState;
   StateSetter? changeBrigadePassDialogState;
+  StateSetter? brigadeStatusState;
 
   FocusNode? _ipAddressFocusNode;
   FocusNode? _nameFocusNode;
@@ -71,8 +77,11 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
   bool? _isGreen = false;
   bool? _isRed = false;
   bool? _isBlue = false;
+  bool isAscending = false;
+
 
   List<TaskServerModel>? _taskList;
+  List<TaskServerModel>? _taskFilteredList;
   List<BackupFile>? _backupFileList;
 
   List<TaskModel>? _tasksModel = [];
@@ -83,19 +92,19 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
   List<User>? _adminsList = [];
   List<User>? _brigadesList = [];
 
-  Stream<int>? onWayTimerStream;
-  Stream<int>? workStartedTimerStream;
-
-  StreamSubscription<int>? onWayTimerSubscription;
-  StreamSubscription<int>? workStartedTimerSubscription;
+  List<Brigade> _brigadeStatusesList = [];
 
   MapsAPI? maps;
 
-  String? brigadesValue;
+  List<String>? brigadesValue = [];
 
-  List<LocationData>? _locations;
+  List<LocationData>? _locations = [];
 
   int? _backupFilesIndex = 0;
+  int? sortColumnIndex;
+
+  DateTime startDate = DateTime.now();
+  DateTime endDate = DateTime.now();
 
   var dateFormatter = DateFormat('dd.MM.yyyy');
 
@@ -122,6 +131,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
     _statusList!.add(Status(status: 'В пути', color: Colors.orangeAccent[700]));
     _statusList!.add(Status(status: 'На месте', color: Colors.yellow[700]));
     _statusList!.add(Status(status: 'Завершено', color: Colors.green));
+    _statusList!.add(Status(status: 'Не завершено', color: Colors.blue));
 
     _htmlWebSocketChannel = HtmlWebSocketChannel.connect('ws://${widget.ip}:1073');
     _socketBroadcastStream = _htmlWebSocketChannel!.stream.asBroadcastStream();
@@ -168,11 +178,95 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                 backgroundColor: Colors.deepOrangeAccent,
                 automaticallyImplyLeading: false,
                 actions: [
-                  IconButton(
-                    icon: const Icon(Icons.calendar_today_outlined),
-                    onPressed: () {
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        onPressed: () async {
+                          DateTime? picked = await showDatePicker(
+                            context: context,
+                            initialDate: startDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2030),
+                          );
 
-                    },
+                          if (picked != null && picked != startDate) {
+                            setState(() {
+                              startDate = picked;
+                            });
+                          }
+                        },
+                      ),
+                      Text(dateFormatter.format(startDate).toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 5),
+                      Container(
+                        height: 2,
+                        width: 25,
+                        color: Colors.white,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        onPressed: () async {
+                          DateTime? picked = await showDatePicker(
+                            context: context,
+                            initialDate: endDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2030),
+                          );
+
+                          if (picked != null && picked != endDate) {
+                            setState(() {
+                              endDate = picked;
+                            });
+                          }
+                        },
+                      ),
+                      Text(dateFormatter.format(endDate).toString(), style: TextStyle(fontWeight: FontWeight.bold))
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  Padding(
+                      padding:
+                      EdgeInsets.only(top: 2.sp, bottom: 2.sp, right: 2.sp),
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: 300,
+                          child: TextFormField(
+                            cursorColor: Colors.deepOrangeAccent,
+                            decoration: const InputDecoration(
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.zero),
+                              hintText: 'Поиск...',
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.deepOrangeAccent)
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.deepOrangeAccent)
+                              )
+                            ),
+                            onChanged: (value) {
+                              dataTableState!(() {
+                                _taskFilteredList = _taskList!.where((item) =>
+                                    item.task.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.brigade.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.address.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.telephone.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.date.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.time.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.note1.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.note2.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.addedBy.toString().toLowerCase().contains(value.toLowerCase()) ||
+                                    item.status.toString().toLowerCase().contains(value.toLowerCase())).toList();
+                              });
+                            },
+                          ),
+                        ),
+                      )),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_sharp),
+                    onPressed: () => setState((){}),
                   ),
                   PrivilegesConstants.ADD_NEW_TASK ? IconButton(
                     icon: const Icon(Icons.add),
@@ -201,20 +295,24 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                         ),
                         PopupMenuItem(
                           value: PrivilegesConstants.BACKUP_DATA ? 3 : null,
-                          child: Text('Сделать резервную копию', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey)),
+                          child: Text('Сделать резервную копию', style: TextStyle(color: PrivilegesConstants.BACKUP_DATA ? Colors.black : Colors.grey)),
                         ),
                         PopupMenuItem(
                           value: PrivilegesConstants.RESTORE_BACKUP ? 4 : null,
-                          child: Text('Восстановить из резервной копии', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey)),
+                          child: Text('Восстановить из резервной копии', style: TextStyle(color: PrivilegesConstants.RESTORE_BACKUP ? Colors.black : Colors.grey)),
                         ),
                         PopupMenuItem(
                           value: PrivilegesConstants.CHANGE_PASSWORDS ? 5 : null,
-                          child: Text('Изменить пароль', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey)),
+                          child: Text('Изменить пароль', style: TextStyle(color: PrivilegesConstants.CHANGE_PASSWORDS ? Colors.black : Colors.grey)),
                         ),
                         PopupMenuItem(
                             value: PrivilegesConstants.CHANGE_PRIVILEGES ? 6 : null,
-                            child: Text('Изменить привилегии', style: TextStyle(color: PrivilegesConstants.ADD_TASK_TEMPLATE ? Colors.black : Colors.grey))
-                        )
+                            child: Text('Изменить привилегии', style: TextStyle(color: PrivilegesConstants.CHANGE_PRIVILEGES ? Colors.black : Colors.grey))
+                        ),
+                        const PopupMenuItem(
+                            value: 7,
+                            child: Text('Статус бригад', style: TextStyle(color: Colors.black))
+                        ),
                       ],
                       onSelected: (value) {
                         switch (value) {
@@ -648,6 +746,34 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                 }
                             );
                             break;
+                          case 7:
+                            showDialog(
+                                context: context,
+                                builder: (context){
+                                  return StatefulBuilder(
+                                    builder: (context, setState){
+                                      return SimpleDialog(
+                                        title: const Text(
+                                          'Статус бригад',
+                                          style: TextStyle(color: Colors.black, fontSize: 30),
+                                        ),
+                                        contentPadding: const EdgeInsets.all(20.0),
+                                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                                        backgroundColor: Colors.white,
+                                        children: [
+                                          const SizedBox(height: 20),
+                                          SizedBox(
+                                            height: 350,
+                                            width: 200,
+                                            child: getBrigadesStatus()
+                                          )
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+                            );
+                            break;
                         }
                       }
                   ) : Container()
@@ -668,7 +794,10 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
 
   // Getting tasks from server
   FutureBuilder<Response<List<TaskServerModel>>> getTasks() {
-    var data = {'ip': UserState.temporaryIp};
+    String formattedStartDate = dateFormatter.format(startDate);
+    String formattedEndDate = dateFormatter.format(endDate);
+    var data = {'start_date' : formattedStartDate, 'end_date' : formattedEndDate};
+
     return FutureBuilder<Response<List<TaskServerModel>>>(
       future: ServerSideApi.create(UserState.temporaryIp, 3).getTasks(data),
       builder: (context, snapshot) {
@@ -682,7 +811,12 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         if (snapshot.connectionState == ConnectionState.done &&
             snapshot.hasData) {
           _taskList = snapshot.data!.body;
-          return buildTasksTable(_taskList);
+
+          _taskFilteredList = List.from(_taskList!.toList());
+
+          StopWatchProvider.initTimers(_taskFilteredList);
+
+          return buildTasksTable();
         } else {
           return const Center(
             child: Text('Список задач пуст', style: TextStyle(fontSize: 20)),
@@ -818,6 +952,30 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
     );
   }
 
+  // Getting brigades statuses
+  FutureBuilder<Response<List<Brigade>>> getBrigadesStatus(){
+    return FutureBuilder<Response<List<Brigade>>>(
+      future: ServerSideApi.create(UserState.temporaryIp, 4).getBrigadesStatus(),
+      builder: (context, snapshot){
+        while (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: Colors.deepOrangeAccent,
+            ),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+          _brigadeStatusesList = snapshot.data!.body!;
+          return createBrigadeStatusDialog();
+        } else {
+          return const Center(
+            child: Text('Список пуст', style: TextStyle(fontSize: 20)),
+          );
+        }
+      },
+    );
+  }
+
   // Creating admins dialog content
   StatefulBuilder createAdminsDialogContent(){
     return StatefulBuilder(
@@ -831,6 +989,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                 DataColumn(label: Text('Имя')),
                 DataColumn(label: Text('Пароль')),
                 DataColumn(label: Text('')),
+                DataColumn(label: Text(''))
               ],
               rows: List<DataRow>.generate(_adminsList!.length, (index){
                 User admins = _adminsList![index];
@@ -879,6 +1038,18 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                             );
                           }
                         );
+                      },
+                    )),
+                    DataCell(IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () async {
+                        var data = {
+                          'name' : admins.username
+                        };
+                        await ServerSideApi.create(UserState.temporaryIp, 1).unregisterAdmin(data).whenComplete((){
+                          _adminsList!.removeAt(index);
+                          setState((){});
+                        });
                       },
                     ))
                   ]
@@ -936,6 +1107,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                   DataColumn(label: Text('Имя')),
                   DataColumn(label: Text('Пароль')),
                   DataColumn(label: Text('')),
+                  DataColumn(label: Text(''))
                 ],
                 rows: List<DataRow>.generate(_brigadesList!.length, (index){
                   User brigades = _brigadesList![index];
@@ -985,6 +1157,18 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                 }
                             );
                           },
+                        )),
+                        DataCell(IconButton(
+                          icon: Icon(Icons.delete),
+                          onPressed: () async {
+                            var data = {
+                              'name' : brigades.username
+                            };
+                            await ServerSideApi.create(UserState.temporaryIp, 1).unregisterBrigade(data).whenComplete((){
+                              _brigadesList!.removeAt(index);
+                              setState((){});
+                            });
+                          },
                         ))
                       ]
                   );
@@ -1028,13 +1212,40 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
     );
   }
 
+  // Creating brigade status dialog
+  StatefulBuilder createBrigadeStatusDialog(){
+    return StatefulBuilder(
+      builder: (context, setState) {
+        brigadeStatusState = setState;
+        return SizedBox.expand(
+            child: SingleChildScrollView(
+              child: DataTable(
+                  columnSpacing: 10,
+                  columns: const [
+                    DataColumn(label: Text('Бригада')),
+                    DataColumn(label: Text('Статус'))
+                  ],
+                  rows: List<DataRow>.generate(_brigadeStatusesList.length, (index) {
+                    Brigade brigade = _brigadeStatusesList[index];
+                    return DataRow(cells: [
+                      DataCell(Text(brigade.brigade)),
+                      DataCell(Text(brigade.status, style: TextStyle(color: brigade.status == 'Offline' ? Colors.red : Colors.green)))
+                    ]);
+                  })),
+            ));
+      },
+    );
+  }
+
   // Building tasks table
-  Widget buildTasksTable(List<TaskServerModel>? _tasksList) {
+  Widget buildTasksTable() {
     return SizedBox.expand(
        child: StatefulBuilder(
          builder: (context, setState){
            dataTableState = setState;
-           return DataTable(
+           return DataTable2(
+             sortAscending: isAscending,
+             sortColumnIndex: sortColumnIndex,
              columnSpacing: 3,
              headingRowHeight: 40,
              headingRowColor: MaterialStateColor.resolveWith((states) {return Colors.grey[300]!;},),
@@ -1043,78 +1254,80 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                width: 1.0,
                color: Colors.grey,
              ),
-             columns: const [
-               DataColumn(label: Center(child: Text('Задание'))),
-               DataColumn(label: Padding(
+             columns: [
+               DataColumn2(label: Center(child: Text('Задание', style: TextStyle(fontSize: 12))), onSort: onSort, fixedWidth: 10.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Бригада'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Адрес', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 16.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Адрес'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Бригада', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 10.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Тел.'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Тел.', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 6.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Дата'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Дата', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 6.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Время'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Время', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 5.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Срочно'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Срочно', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 5.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Примечание 1'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Примечание 1', style: TextStyle(fontSize: 12)),
+               ), fixedWidth: 9.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Примечание 2'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Примечание 2', style: TextStyle(fontSize: 12)),
+               ), fixedWidth: 9.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Админ'),
-               )),
-               DataColumn(label: Padding(
+                 child: Text('Админ', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 5.w),
+               DataColumn2(label: Padding(
                  padding: EdgeInsets.symmetric(horizontal: 10),
-                 child: Text('Статус'),
-               )),
-               DataColumn(label: Text('')),
-               DataColumn(label: Text('')),
-               DataColumn(label: Text('')),
+                 child: Text('Статус', style: TextStyle(fontSize: 12)),
+               ), onSort: onSort, fixedWidth: 8.w),
+               DataColumn2(label: Text(''), fixedWidth: 3.w),
+               DataColumn2(label: Text(''), fixedWidth: 3.w),
+               DataColumn2(label: Text(''), fixedWidth: 3.w),
              ],
-             rows: List<DataRow>.generate(_tasksList!.length, (index) {
-               TaskServerModel task = _tasksList[index];
+             rows: List<DataRow>.generate(_taskFilteredList!.length, (index) {
+               TaskServerModel task = _taskFilteredList![index];
                String? status = task.status;
 
-               if (task.brigade != "") {
-                 brigadesValue = task.brigade;
+               if (task.brigade != '') {
+                 brigadesValue![index] = task.brigade;
                }
 
-               List<TextEditingController> note1TextEditingControllers = List.generate(_tasksList.length, (index) {
+               List<TextEditingController> note1TextEditingControllers = List.generate(_taskFilteredList!.length, (index) {
                  return TextEditingController();
                });
-               List<TextEditingController> note2TextEditingControllers = List.generate(_tasksList.length, (index) {
+               List<TextEditingController> note2TextEditingControllers = List.generate(_taskFilteredList!.length, (index) {
                  return TextEditingController();
                });
 
-               note1TextEditingControllers[index].value =
-                   note1TextEditingControllers[index].value.copyWith(
-                       text: task.note1);
-               note2TextEditingControllers[index].value =
-                   note2TextEditingControllers[index].value.copyWith(
-                       text: task.note2);
+
+               note1TextEditingControllers[index].value = note1TextEditingControllers[index].value.copyWith(text: task.note1);
+               note2TextEditingControllers[index].value = note2TextEditingControllers[index].value.copyWith(text: task.note2);
 
                _listenSocket(task);
+
                return DataRow(
                  cells: [
-                   DataCell(Text(task.task, style: TextStyle(color: Color(int.parse('0x' + task.color))))),
+                   DataCell(Text(task.task, style: TextStyle(color: Color(int.parse('0x' + task.color)), fontSize: 12))),
+                   DataCell(Padding(
+                     padding: const EdgeInsets.only(left: 10),
+                     child: Text(task.address, style: TextStyle(fontSize: 12)),
+                   )),
                    DataCell(IgnorePointer(
                      ignoring: !PrivilegesConstants.ASSIGN_TASK_TO_BRIGADE,
                      child: Padding(
@@ -1122,21 +1335,19 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                        child: StatefulBuilder(
                          builder: (context, setState) {
                            return DropdownButton<String>(
-                             hint: const Text('Выберите бригаду'),
-                             value: brigadesValue,
+                             hint: const Text('Выберите бригаду', style: TextStyle(fontSize: 12)),
+                             value: brigadesValue![index],
                              onChanged: (String? value) {
                                setState(() {
-                                 brigadesValue = value;
+                                 brigadesValue![index] = value!;
                                  var data = {
                                    'ip': UserState.temporaryIp,
                                    'id': task.id,
-                                   'brigade': brigadesValue
+                                   'brigade': brigadesValue![index]
                                  };
-                                 ServerSideApi.create(UserState.temporaryIp, 1)
-                                     .changeBrigade(data)
-                                     .then((value) {
+                                 ServerSideApi.create(UserState.temporaryIp, 1).changeBrigade(data).then((value) {
                                    _notifyBrigades!.notify(
-                                       task.address, brigadesValue!, 'Новая задача',
+                                       task.address, brigadesValue![index], 'Новая задача',
                                        task.date, task.time,
                                        task.isUrgent == true ? "Срочно" : "Не срочно");
                                  });
@@ -1145,7 +1356,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                              items: _brigadeModel!.map<DropdownMenuItem<String>>((brigade) {
                                return DropdownMenuItem(
                                  value: brigade.name,
-                                 child: Text(brigade.name),
+                                 child: Text(brigade.name, style: TextStyle(fontSize: 12)),
                                );
                              }).toList(),
                            );
@@ -1155,32 +1366,29 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                    )),
                    DataCell(Padding(
                      padding: const EdgeInsets.only(left: 10),
-                     child: Text(task.address),
-                   )),
-                   DataCell(Padding(
-                     padding: const EdgeInsets.only(left: 10),
-                     child: Text(task.telephone),
+                     child: Text(task.telephone, style: TextStyle(fontSize: 12)),
                    )),
                    DataCell(Padding(
                        padding: const EdgeInsets.only(left: 10),
-                       child: Text(task.date)
+                       child: Text(task.date, style: TextStyle(fontSize: 12))
                    )),
                    DataCell(Padding(
                      padding: const EdgeInsets.only(left: 10),
-                     child: Text(task.time),
+                     child: Text(task.time, style: TextStyle(fontSize: 12)),
                    )),
                    DataCell(Padding(
                      padding: const EdgeInsets.only(left: 10),
-                     child: Text(task.isUrgent == '1' ? 'Да' : 'Нет'),
+                     child: Text(task.isUrgent == '1' ? 'Да' : 'Нет', style: TextStyle(fontSize: 12, color: task.isUrgent == '1' ? Colors.red : Colors.black)),
                    )),
                    DataCell(SizedBox(
                        width: 150,
                        height: 30,
                        child: TextFormField(
+                         textAlignVertical: TextAlignVertical.center,
                          controller: note1TextEditingControllers[index],
+                         style: const TextStyle(fontSize: 12),
                          cursorColor: Colors.deepOrangeAccent,
                          decoration: const InputDecoration(
-                             contentPadding: EdgeInsets.symmetric(vertical: 15),
                              border: InputBorder.none
                          ),
 
@@ -1194,7 +1402,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                            ServerSideApi.create(UserState.temporaryIp, 1).editNotes1(data);
                            var note1SocketData = {
                              'id': task.id,
-                             'brigade': brigadesValue,
+                             'brigade': task.brigade,
                              'note1': text
                            };
 
@@ -1205,10 +1413,11 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                    DataCell(SizedBox(
                        width: 150,
                        child: TextFormField(
+                         textAlignVertical: TextAlignVertical.center,
                          controller: note2TextEditingControllers[index],
+                         style: const TextStyle(fontSize: 12),
                          cursorColor: Colors.deepOrangeAccent,
                          decoration: const InputDecoration(
-                             contentPadding: EdgeInsets.symmetric(vertical: 15),
                              border: InputBorder.none
                          ),
                          onFieldSubmitted: (text) {
@@ -1221,7 +1430,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                .editNotes2(data);
                            var note2SocketData = {
                              'id': task.id,
-                             'brigade': brigadesValue,
+                             'brigade': task.brigade,
                              'note2': text
                            };
 
@@ -1232,7 +1441,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                    )),
                    DataCell(Padding(
                      padding: const EdgeInsets.only(left: 10),
-                     child: Text(task.addedBy),
+                     child: Text(task.addedBy, style: TextStyle(fontSize: 12)),
                    )),
                    DataCell(IgnorePointer(
                      ignoring: !PrivilegesConstants.CHANGE_TASK_STATUS,
@@ -1251,23 +1460,23 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                    'id': task.id,
                                    'status': value
                                  };
-                                 ServerSideApi.create(UserState.temporaryIp, 1)
-                                     .updateStatus(data);
+
                                  var socketData = {
                                    'id': task.id,
-                                   'brigade': brigadesValue,
+                                   'brigade': task.brigade,
                                    'status': value
                                  };
 
-                                 _htmlWebSocketChannel!.sink.add(
-                                     json.encode(socketData));
+                                 ServerSideApi.create(UserState.temporaryIp, 1).updateStatus(data).whenComplete((){
+                                   _htmlWebSocketChannel!.sink.add(json.encode(socketData));
+                                 });
                                });
                              },
                              items: _statusList!.map<DropdownMenuItem<String>>((status) {
                                return DropdownMenuItem(
                                  value: status.status,
                                  child: Text(status.status,
-                                     style: TextStyle(color: status.color)),
+                                     style: TextStyle(color: status.color, fontSize: 12)),
                                );
                              }).toList(),
                            );
@@ -1292,8 +1501,9 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                            ),
                            onPressed: () async {
                              var data = {'ip': UserState.temporaryIp, 'id': task.id};
-                             Response response = await ServerSideApi.create(
-                                 UserState.temporaryIp, 1).deleteTask(data);
+                             _taskList!.removeAt(index);
+                             _taskFilteredList!.removeAt(index);
+                             Response response = await ServerSideApi.create(UserState.temporaryIp, 1).deleteTask(data);
                              if (response.body == 'task_deleted') {
                                _showMessage!.show(context, 7);
                                Navigator.pop(context);
@@ -1302,8 +1512,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                  'delete_task': true,
                                  'brigade': task.brigade,
                                };
-                               _htmlWebSocketChannel!.sink.add(
-                                   json.encode(socketData));
+                               _htmlWebSocketChannel!.sink.add(json.encode(socketData));
 
                                setState(() {});
                              }
@@ -1333,86 +1542,84 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                      child: IconButton(
                        icon: Icon(Icons.info, color: PrivilegesConstants.GET_TASK_INFO ? Colors.black : Colors.grey),
                        onPressed: PrivilegesConstants.GET_TASK_INFO ? () {
-                         requestLocationData(task);
-                         double height = MediaQuery.of(context).size.height;
-                         double width = MediaQuery.of(context).size.width;
                          showDialog(
                              context: context,
                              builder: (context) {
                                return SimpleDialog(
-                                 contentPadding: const EdgeInsets.fromLTRB(5, 5, 5, 5),
+                                 contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                                  children: [
-                                   Row(
-                                     crossAxisAlignment: CrossAxisAlignment.start,
-                                     children: [
-                                       StatefulBuilder(
-                                         builder: (context, setState){
-                                           mapTaskInfoState = setState;
-                                           return SizedBox(
-                                               width: width/4,
-                                               child: Column(
+                                   StatefulBuilder(
+                                     builder: (context, setState){
+                                       taskInfoState = setState;
+                                       return  SizedBox(
+                                           child: Column(
+                                             children: [
+                                               const Text('Информация о задании', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                                               const SizedBox(height: 20),
+                                               Row(
                                                  children: [
-                                                   const Text('Информация о задании', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-                                                   const SizedBox(height: 20),
-                                                   Row(
+                                                   const Text('Задание: ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                                   Text('${task.task}', style: TextStyle(color: Color(int.parse('0x' + task.color)), fontSize: 15))
+                                                 ],
+                                               ),
+                                               const SizedBox(height: 10),
+                                               Row(
+                                                 children: [
+                                                   const Text('Бригада: ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                                   Text('${task.brigade}', style: const TextStyle(fontSize: 15))
+                                                 ],
+                                               ),
+                                               const SizedBox(height: 10),
+                                               Row(
+                                                 children: [
+                                                   const Text('Адрес: ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                                   Text('${task.address}', style: const TextStyle(fontSize: 15))
+                                                 ],
+                                               ),
+                                               const SizedBox(height: 10),
+                                               Consumer<StopWatchProvider>(
+                                                 builder: (context, viewModel, child){
+                                                   return Row(
                                                      children: [
-                                                       const Text('Задание: ', style: TextStyle(fontSize: 15)),
-                                                       Text('${task.task}', style: TextStyle(color: Color(int.parse('0x' + task.color)), fontSize: 15))
+                                                       const Text('Время в пути: ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                                       Text('${viewModel.taskModelList![index].onWayTime}', style: const TextStyle(fontSize: 15))
                                                      ],
-                                                   ),
-                                                   const SizedBox(height: 10),
-                                                   Row(
+                                                   );
+                                                 },
+                                               ),
+                                               const SizedBox(height: 10),
+                                               Consumer<StopWatchProvider>(
+                                                   builder: (context, viewModel, child){
+                                                     return Row(
+                                                       children: [
+                                                         const Text('Время работы: ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                                         Text('${viewModel.taskModelList![index].workTime}', style: const TextStyle(fontSize: 15))
+                                                       ],
+                                                     );
+                                                   }
+                                               ),
+                                               const SizedBox(height: 10),
+                                               Consumer<StopWatchProvider>(
+                                                 builder: (context, viewModel, child){
+                                                   return Row(
                                                      children: [
-                                                       const Text('Бригада: ', style: TextStyle(fontSize: 15)),
-                                                       Text('${task.brigade}', style: const TextStyle(fontSize: 15))
+                                                       const Text('Общее время задания: ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                                       Text('${viewModel.taskModelList![index].allTaskTime}', style: const TextStyle(fontSize: 15))
                                                      ],
-                                                   ),
-                                                   const SizedBox(height: 10),
-                                                   Row(
-                                                     children: [
-                                                       const Text('Адрес: ', style: TextStyle(fontSize: 15)),
-                                                       Text('${task.address}', style: const TextStyle(fontSize: 15))
-                                                     ],
-                                                   ),
-                                                   const SizedBox(height: 10),
-                                                   Row(
-                                                     children: [
-                                                       const Text('Время в пути: ', style: TextStyle(fontSize: 15)),
-                                                       Text('${task.onWayTime}', style: const TextStyle(fontSize: 15))
-                                                     ],
-                                                   ),
-                                                   const SizedBox(height: 10),
-                                                   Row(
-                                                     children: [
-                                                       const Text('Время работы: ', style: TextStyle(fontSize: 15)),
-                                                       Text('${task.workTime}', style: const TextStyle(fontSize: 15))
-                                                     ],
-                                                   ),
-                                                   const SizedBox(height: 10),
-                                                   Row(
-                                                     children: [
-                                                       const Text('Общее время задания: ', style: TextStyle(fontSize: 15)),
-                                                       Text('${task.allTaskTime}', style: const TextStyle(fontSize: 15))
-                                                     ],
-                                                   ),
-                                                   const SizedBox(height: 10),
-                                                   Row(
-                                                     children: [
-                                                       const Text('Статус: ', style: TextStyle(fontSize: 15)),
-                                                       Text('${task.status}', style: const TextStyle(fontSize: 15))
-                                                     ],
-                                                   )
+                                                   );
+                                                 },
+                                               ),
+                                               const SizedBox(height: 10),
+                                               Row(
+                                                 children: [
+                                                   const Text('Статус: ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                                   Text('${task.status}', style: const TextStyle(fontSize: 15))
                                                  ],
                                                )
-                                           );
-                                         },
-                                       ),
-                                       SizedBox(
-                                         child: task.status != 'Завершено' ? mapsBuilder() : mapsPolyLine(),
-                                         height: height * 0.5,
-                                         width: width / 2,
-                                       )
-                                     ],
+                                             ],
+                                           )
+                                       );
+                                     },
                                    )
                                  ],
                                );
@@ -1426,7 +1633,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
              }),
            );
          },
-       )
+       ),
     );
   }
 
@@ -1513,6 +1720,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
           return const Center(child: CircularProgressIndicator(color: Colors.orangeAccent));
         }
 
+
         if(snapshot.connectionState == ConnectionState.active && snapshot.hasData){
           Map<String, dynamic>? cord = json.decode(snapshot.data);
 
@@ -1520,6 +1728,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         }else{
           return const Center(child: Text("Error"));
         }
+
       },
     );
   }
@@ -1547,7 +1756,8 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
       };
 
       _htmlWebSocketChannel!.sink.add(json.encode(socketRequestData));
-    } else {
+    } else if(task.status == 'Завершено') {
+      _locations!.clear();
       _locations = jsonDecode(task.cords);
     }
   }
@@ -1788,8 +1998,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                   );
                                 }
                             );
-                            if (pickedTime != null &&
-                                pickedTime != selectedTime) {
+                            if (pickedTime != null && pickedTime != selectedTime) {
                               setState(() {
                                 selectedTime = pickedTime;
                                 String? hour = selectedTime.hour.toString();
@@ -2201,6 +2410,8 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         if (response.body == 'user_registered') {
           Navigator.pop(context);
           _showMessage!.show(context, 7);
+
+          _adminsList!.add(User(username: name, password: password));
         } else if (response.body == 'user_already_exists') {
           _showMessage!.show(context, 2);
         }
@@ -2229,6 +2440,8 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         if (response.body == 'user_registered') {
           Navigator.pop(context);
           _showMessage!.show(context, 7);
+
+          _brigadesList!.add(User(username: name, password: password));
         } else if (response.body == 'user_already_exists') {
           _showMessage!.show(context, 2);
         }
@@ -2593,8 +2806,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
       'status': 'Не выполнено',
     };
 
-    Response response = await ServerSideApi.create(UserState.temporaryIp, 1)
-        .addTask(data);
+    Response response = await ServerSideApi.create(UserState.temporaryIp, 1).addTask(data);
     if (response.body == 'task_added') {
       _showMessage!.show(context, 7);
       Navigator.pop(context);
@@ -2603,6 +2815,13 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         _notifyBrigades!.notify(address, brigade, 'Новая задача', date, time,
             isUrgent == true ? "Срочно" : "Не срочно");
       }
+
+      var socketData = {
+        'new_task': true,
+        'brigade': brigade,
+      };
+
+      _htmlWebSocketChannel!.sink.add(json.encode(socketData));
 
       setState(() {});
     }
@@ -2691,41 +2910,6 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
         });
   }
 
-  // Listener for socket
-  void _listenSocket(TaskServerModel? task) {
-    _socketBroadcastStream!.listen((event) {
-      Map<String, dynamic> eventMap = json.decode(event);
-      String? taskId = eventMap['id'];
-      if (taskId == task!.id) {
-        eventMap.forEach((key, value) {
-          switch (key) {
-            case 'onWayTime':
-              mapTaskInfoState!(() {
-                task.onWayTime = eventMap['onWayTime'];
-              });
-              break;
-            case 'workTime':
-              mapTaskInfoState!(() {
-                task.workTime = eventMap['workTime'];
-              });
-              break;
-            case 'allTaskTime':
-              mapTaskInfoState!(() {
-                task.allTaskTime = eventMap['allTaskTime'];
-              });
-              break;
-            case 'status':
-              setState(() {});
-
-              task.status = eventMap['status'];
-              mapTaskInfoState!(() {});
-              break;
-          }
-        });
-      }
-    });
-  }
-
   // Backup app data
   void _backupData(String filename) async {
     var data = {
@@ -2812,7 +2996,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                 children: [
                   Divider(thickness: 0.3.sp),
                   SizedBox(
-                    width: 35.w,
+                    width: 40.w,
                     child: SingleChildScrollView(
                       child: Row(
                         children: [
@@ -2926,7 +3110,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Добавить бригад                   '),
+                                  Text('Добавить бригаду                  '),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -2958,7 +3142,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Изменить пароля                   '),
+                                  Text('Изменить пароль                  '),
                                 ],
                               )
                             ],
@@ -2978,7 +3162,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Изменить задачу                               '),
+                                  Text('Изменить задачу                                   '),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -2994,7 +3178,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Смотреть статус задачи                 '),
+                                  Text('Смотреть статус задачи                        '),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -3010,7 +3194,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Зарегистрировать админа             '),
+                                  Text('Зарегистрировать админа                      '),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -3026,7 +3210,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text("Раздел 'Настройки'                        "),
+                                  Text("Раздел 'Настройки'                                "),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -3042,7 +3226,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Удалить шаблон задачи                '),
+                                  Text('Удалить шаблон задачи                      '),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -3058,7 +3242,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Удалить бригад                              '),
+                                  Text('Удалить бригаду                                    '),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -3074,7 +3258,7 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
                                       });
                                     },
                                   ),
-                                  Text('Восстановить из резервной копии'),
+                                  Text('Восстановить из резервной копии        '),
                                 ],
                               ),
                               SizedBox(height: 1.h),
@@ -3147,6 +3331,109 @@ class _TasksPageState extends State<TaskPage> with TickerProviderStateMixin {
 
       PrivilegesConstants.clear();
     }
+  }
+
+  // Listener for socket
+  void _listenSocket(TaskServerModel? task) {
+    int index = _taskFilteredList!.indexOf(task!);
+
+    _socketBroadcastStream!.listen((event) {
+      Map<String, dynamic> eventMap = json.decode(event);
+      String? taskId = eventMap['id'];
+
+
+      if (taskId == task.id) {
+        eventMap.forEach((key, value) {
+          switch (key) {
+            case 'status':
+
+              task.status = eventMap['status'];
+              dataTableState!(() {});
+
+              if(task.status == 'В пути'){
+                Provider.of<StopWatchProvider>(context, listen: false).startOnWayTimer(index);
+
+                taskInfoState!((){});
+              }else if(task.status == 'На месте'){
+                Provider.of<StopWatchProvider>(context, listen: false).stopOnWayTimer(index);
+                Provider.of<StopWatchProvider>(context, listen: false).startWorkTimer(index);
+
+                taskInfoState!((){});
+              }else if(task.status == 'Завершено'){
+                Provider.of<StopWatchProvider>(context, listen: false).stopWorkTimer(index);
+                Provider.of<StopWatchProvider>(context, listen: false).updateTime(index);
+
+                taskInfoState!((){});
+
+              }else if(task.status == 'Не завершено'){
+                Provider.of<StopWatchProvider>(context, listen: false).stopOnWayTimer(index);
+                Provider.of<StopWatchProvider>(context, listen: false).stopWorkTimer(index);
+
+                Provider.of<StopWatchProvider>(context, listen: false).resetOnWayTimer(index);
+                Provider.of<StopWatchProvider>(context, listen: false).resetWorkTimer(index);
+
+                taskInfoState!((){});
+              }
+              break;
+          }
+        });
+      }
+    });
+  }
+
+  // Sorting algorithm
+  void onSort(int columnIndex, bool ascending) {
+    if (_taskFilteredList == null) {
+      if(columnIndex == 0){
+        _taskList!.sort((a,b) => compareString(ascending, a.task, b.task));
+      }else if(columnIndex == 1){
+        _taskList!.sort((a,b) => compareString(ascending, a.address, b.address));
+      }else if(columnIndex == 2){
+        _taskList!.sort((a,b) => compareString(ascending, a.brigade, b.brigade));
+      }else if(columnIndex == 3){
+        _taskList!.sort((a,b) => compareString(ascending, a.telephone, b.telephone));
+      }else if(columnIndex == 4){
+        _taskList!.sort((a,b) => compareString(ascending, a.date, b.date));
+      }else if(columnIndex == 5){
+        _taskList!.sort((a,b) => compareString(ascending, a.time, b.time));
+      }else if(columnIndex == 6){
+        _taskList!.sort((a,b) => compareString(ascending, a.isUrgent, b.isUrgent));
+      }else if(columnIndex == 9){
+        _taskList!.sort((a,b) => compareString(ascending, a.addedBy, b.addedBy));
+      }else if(columnIndex == 10){
+        _taskList!.sort((a,b) => compareString(ascending, a.status, b.status));
+      }
+    } else {
+      if(columnIndex == 0){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.task, b.task));
+      }else if(columnIndex == 1){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.address, b.address));
+      }else if(columnIndex == 2){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.brigade, b.brigade));
+      }else if(columnIndex == 3){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.telephone, b.telephone));
+      }else if(columnIndex == 4){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.date, b.date));
+      }else if(columnIndex == 5){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.time, b.time));
+      }else if(columnIndex == 6){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.isUrgent, b.isUrgent));
+      }else if(columnIndex == 9){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.addedBy, b.addedBy));
+      }else if(columnIndex == 10){
+        _taskFilteredList!.sort((a,b) => compareString(ascending, a.status, b.status));
+      }
+    }
+
+    dataTableState!(() {
+      sortColumnIndex = columnIndex;
+      isAscending = ascending;
+    });
+  }
+
+  // Compare string
+  int compareString(bool ascending, String value1, String value2) {
+    return ascending ? value1.compareTo(value2) : value2.compareTo(value1);
   }
 }
 

@@ -31,6 +31,12 @@ class MapsAPI {
       for(var coords in coordinates){
         pathCoordinates.add(LatLng(coords.latitude, coords.longitude));
       }
+
+      print('Length1: ' + pathCoordinates.length.toString());
+      print('Length2: ' + coordinates.length.toString());
+
+      print(coordinates[0].latitude);
+      print(coordinates[0].longitude);
     }
 
     const String htmlId = "map";
@@ -46,7 +52,9 @@ class MapsAPI {
         ..id = htmlId;
       final map = GMap(elem, mapOptions);
 
-      const _icon = w.Icon(w.Icons.location_on_rounded);
+      final _icon = Icon()
+        ..scaledSize = Size(40, 40)
+        ..url = "assets/assets/location.png";
 
       if(_isPolylineRequired){
         final polyline = Polyline(PolylineOptions()

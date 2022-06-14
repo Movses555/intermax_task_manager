@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:intermax_task_manager/Brigades%20Settings/brigade_details.dart';
 import 'package:intermax_task_manager/Flutter%20Toast/flutter_toast.dart';
 import 'package:intermax_task_manager/Privileges/privileges.dart';
+import 'package:intermax_task_manager/Provider/stop_watch_provider.dart';
 import 'package:intermax_task_manager/ServerSideApi/server_side_api.dart';
 import 'package:intermax_task_manager/User%20Details/user_details.dart';
 import 'package:intermax_task_manager/User%20State/user_state.dart';
 import 'package:intermax_task_manager/tasks_page.dart';
+import 'package:provider/provider.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await UserState.init();
-  runApp(const MaterialApp(
-    home: TaskManagerMainPage(),
-  )
+  runApp(ChangeNotifierProvider<StopWatchProvider>(
+       create: (_) => StopWatchProvider(),
+       child: const MaterialApp(
+         home: TaskManagerMainPage(),
+       ),
+    )
   );
 }
 
@@ -253,33 +257,33 @@ class _MainPageState extends State<TaskManagerMainPage> {
     User? userData;
     var data = {'ip': ip, 'name': name, 'password': password};
 
-    return Future.wait([
-      ServerSideApi.create(ip, 2).loginUser(data).then((value) => userData = value.body),
-      _privileges!.getPrivileges(name)
-    ]).whenComplete(() async {
-      if(ip == '' || name == '' || password == ''){
-        _showMessage!.show(context, 3);
-      }else{
-        if(userData!.status == 'account_exists'){
-          Navigator.pop(context);
-          _showMessage!.show(context, 4);
-          if(isChecked == true){
-            setState(() {
-              UserState.temporaryIp = ip;
-              UserState.userName = userData!.username;
-              UserState.rememberUser(ip, userData!.username, password);
-            });
-          }else{
-            setState(() {
-              UserState.temporaryIp = ip;
-              UserState.userName = userData!.username;
-            });
+    if(ip == '' || name == '' || password == ''){
+      _showMessage!.show(context, 3);
+    }else{
+      await ServerSideApi.create(ip, 2).loginUser(data).then((value) async {
+        userData = value.body;
+        await _privileges!.getPrivileges(ip, name).whenComplete((){
+          if(userData!.status == 'account_exists'){
+            Navigator.pop(context);
+            _showMessage!.show(context, 4);
+            if(isChecked == true){
+              setState(() {
+                UserState.temporaryIp = ip;
+                UserState.userName = userData!.username;
+                UserState.rememberUser(ip, userData!.username, password);
+              });
+            }else{
+              setState(() {
+                UserState.temporaryIp = ip;
+                UserState.userName = userData!.username;
+              });
+            }
+            Navigator.push(context, MaterialPageRoute(builder: (context) => TaskPage(ip: ip)));
+          }else if (userData!.status == 'account_not_exists'){
+            _showMessage!.show(context, 5);
           }
-          Navigator.push(context, MaterialPageRoute(builder: (context) => TaskPage(ip: ip)));
-        }else if (userData!.status == 'account_not_exists'){
-          _showMessage!.show(context, 5);
-        }
-      }
-    });
+        });
+      });
+    }
   }
 }

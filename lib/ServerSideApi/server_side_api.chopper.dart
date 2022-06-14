@@ -217,6 +217,30 @@ class _$ServerSideApi extends ServerSideApi {
   }
 
   @override
+  Future<Response<dynamic>> unregisterAdmin(dynamic data) {
+    final $url = '/unregister_admin.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> unregisterBrigade(dynamic data) {
+    final $url = '/unregister_brigade.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
+  Future<Response<dynamic>> setTime(dynamic data) {
+    final $url = '/set_time.php';
+    final $body = data;
+    final $request = Request('POST', $url, client.baseUrl, body: $body);
+    return client.send<dynamic, dynamic>($request);
+  }
+
+  @override
   Future<Response<List<BackupFile>>> getBackupFiles() {
     final $url = '/get_backup_files.php';
     final $request = Request('GET', $url, client.baseUrl);
@@ -249,5 +273,12 @@ class _$ServerSideApi extends ServerSideApi {
     final $url = '/get_brigades.php';
     final $request = Request('GET', $url, client.baseUrl);
     return client.send<List<User>, User>($request);
+  }
+
+  @override
+  Future<Response<List<Brigade>>> getBrigadesStatus() {
+    final $url = '/get_brigades_status.php';
+    final $request = Request('GET', $url, client.baseUrl);
+    return client.send<List<Brigade>, Brigade>($request);
   }
 }

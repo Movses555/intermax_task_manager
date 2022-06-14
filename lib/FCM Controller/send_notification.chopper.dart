@@ -22,7 +22,7 @@ class _$Notify extends Notify {
     final $headers = {
       'Authorization':
           'key=AAAA--A2rHM:APA91bErvxIUm6FDHa6M4-UNSUxS6Iv2An-y7u0K4JN7tkdRPzMBFSv2OFZY0NoUYcgMUXkoJN64uyjJq74cOuc83scqXi8DRwtt22tztNB2-U46n58tu2DKc6sxmv-0gIp13E74T_3p',
-      'Content-Type': 'application/json',
+      'Content-Type': 'text/plain',
     };
 
     final $body = data;

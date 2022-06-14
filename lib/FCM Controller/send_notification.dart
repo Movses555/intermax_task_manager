@@ -9,7 +9,7 @@ abstract class Notify extends ChopperService{
 
   @Post(path: '/fcm/send', headers: {
     'Authorization' : 'key=$_key',
-    'Content-Type' : 'application/json'
+    'Content-Type' : 'text/plain'
   })
   Future<Response> notify(@Body() var data);
 

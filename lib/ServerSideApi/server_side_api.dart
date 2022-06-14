@@ -89,6 +89,15 @@ abstract class ServerSideApi extends ChopperService{
   @Post(path: '/submit_privileges.php')
   Future<Response> submitPrivileges(@Body() var data);
 
+  @Post(path: '/unregister_admin.php')
+  Future<Response> unregisterAdmin(@Body() var data);
+
+  @Post(path: '/unregister_brigade.php')
+  Future<Response> unregisterBrigade(@Body() var data);
+
+  @Post(path: '/set_time.php')
+  Future<Response> setTime(@Body() var data);
+
   @Get(path: '/get_backup_files.php')
   Future<Response<List<BackupFile>>> getBackupFiles();
 
@@ -103,6 +112,9 @@ abstract class ServerSideApi extends ChopperService{
 
   @Get(path: '/get_brigades.php')
   Future<Response<List<User>>> getBrigades();
+
+  @Get(path: '/get_brigades_status.php')
+  Future<Response<List<Brigade>>> getBrigadesStatus();
 
 
 

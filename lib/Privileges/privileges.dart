@@ -7,6 +7,7 @@ import 'package:intermax_task_manager/User%20State/user_state.dart';
 class Privileges{
 
   static var privileges;
+  static var _ip;
 
   static Privileges createInstance(){
     privileges ??= Privileges();
@@ -14,7 +15,8 @@ class Privileges{
     return privileges;
   }
 
-  Future getPrivileges(String name) async {
+  Future getPrivileges(String ip, String name) async {
+    _ip = ip;
     var data = {'name' : name};
     return Future.wait([
       _getPrivileges(data)
@@ -55,7 +57,7 @@ class Privileges{
 
   Future _getPrivileges(var data) async {
     return Future.wait([
-      ServerSideApi.create(UserState.temporaryIp, 8).getPrivileges(data)
+      ServerSideApi.create(_ip, 8).getPrivileges(data)
     ]).then((value){
       PrivilegesModel? privilegesModel = value[0].body;
       if(privilegesModel != null){
